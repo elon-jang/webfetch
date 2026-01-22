@@ -271,6 +271,103 @@ const result = await withRetry(
 - `AuthError`, `ContentError`: 재시도 안함
 - Playwright 에러 (`net::ERR_*`, `Timeout`): 재시도
 
+### Cache (`utils/cache.js`)
+
+URL 해시 기반 캐싱 시스템. 중복 스크래핑을 방지합니다.
+
+```javascript
+import { hasCache, getCache, setCache, clearCache } from './utils/cache.js';
+
+// 캐시 확인 (24시간 유효)
+if (hasCache(url, 24 * 60 * 60 * 1000)) {
+  const cached = getCache(url);
+  console.log(cached.result);
+}
+
+// 캐시 저장
+setCache(url, result);
+
+// 캐시 삭제
+clearCache(url);       // 특정 URL
+clearAllCache();       // 전체
+```
+
+**캐시 저장소:**
+```
+.cache/
+├── {md5-hash}.json    # URL 해시 기반 파일명
+└── ...
+```
+
+**캐시 데이터 구조:**
+```json
+{
+  "url": "https://...",
+  "cachedAt": "2026-01-22T12:00:00.000Z",
+  "result": {
+    "title": "...",
+    "html": "...",
+    "url": "...",
+    "metadata": {}
+  }
+}
+```
+
+## 배치 처리 (`batch.js`)
+
+여러 URL을 순차적으로 처리하는 배치 모듈.
+
+```javascript
+import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
+
+// URL 파일 파싱
+const urls = parseUrlFile('urls.txt');
+
+// 배치 처리
+const results = await processBatch(urls, {
+  format: 'markdown',
+  browser: 'chrome',
+  useCache: true,
+  cacheMaxAge: 24 * 60 * 60 * 1000,
+  outputDir: './output',
+  stopOnError: false,
+});
+
+// 리포트 저장
+saveBatchReport(results, 'report.json');
+```
+
+**URL 파일 형식:**
+```
+# 주석은 # 으로 시작
+https://youtu.be/VIDEO_ID_1
+https://youtu.be/VIDEO_ID_2
+https://longblack.co/note/1234
+```
+
+**배치 결과 구조:**
+```json
+{
+  "total": 3,
+  "success": 2,
+  "failed": 1,
+  "skipped": 0,
+  "fromCache": 1,
+  "startTime": "2026-01-22T12:00:00.000Z",
+  "endTime": "2026-01-22T12:05:00.000Z",
+  "items": [
+    {
+      "index": 1,
+      "url": "https://...",
+      "status": "success",
+      "title": "제목",
+      "outputPath": "output/2026-01-22_제목.md",
+      "fromCache": false
+    }
+  ]
+}
+```
+
 ## 에러 처리
 
 | 상황 | 에러 클래스 | 처리 |

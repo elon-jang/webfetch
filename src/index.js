@@ -9,6 +9,8 @@ import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
 import { WebfetchError } from './utils/errors.js';
 import { logger } from './utils/logger.js';
+import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
+import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -38,6 +40,7 @@ program
   .description('Web scraping CLI - LiveWiki & Longblack')
   .version('1.0.0');
 
+// Single URL scrape (default command)
 program
   .argument('<url>', 'URL to scrape (YouTube URL or content URL)')
   .option('-f, --format <type>', 'output format (markdown, json, pdf)', 'markdown')
@@ -45,6 +48,8 @@ program
   .option('-b, --browser <type>', 'browser (chrome, firefox)', 'chrome')
   .option('--headless', 'run headless (not recommended for login)', false)
   .option('--keep-open', 'keep browser open after scrape', false)
+  .option('--no-cache', 'skip cache (always fetch fresh)')
+  .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .action(async (url, options) => {
     try {
       const adapter = getAdapter(url);
@@ -60,11 +65,31 @@ program
 
       console.log(`\n📄 webfetch - ${adapter.name}\n`);
 
-      const result = await adapter.scrape(url, {
-        browser: options.browser,
-        headless: options.headless,
-        keepOpen: options.keepOpen,
-      });
+      let result;
+      const cacheMaxAge = parseInt(options.cacheMaxAge) * 60 * 60 * 1000;
+
+      // Check cache first (if enabled)
+      if (options.cache && hasCache(url, cacheMaxAge)) {
+        const cached = getCache(url);
+        if (cached?.result) {
+          console.log('📦 Using cached result');
+          result = cached.result;
+        }
+      }
+
+      // Scrape if not cached
+      if (!result) {
+        result = await adapter.scrape(url, {
+          browser: options.browser,
+          headless: options.headless,
+          keepOpen: options.keepOpen,
+        });
+
+        // Save to cache (if enabled)
+        if (options.cache) {
+          setCache(url, result);
+        }
+      }
 
       // Format output
       const format = options.format.toLowerCase();
@@ -106,6 +131,57 @@ program
     }
   });
 
+// Batch processing command
+program
+  .command('batch <file>')
+  .description('Process multiple URLs from a file')
+  .option('-f, --format <type>', 'output format (markdown, json, pdf)', 'markdown')
+  .option('-o, --output-dir <path>', 'output directory', OUTPUT_DIR)
+  .option('-b, --browser <type>', 'browser (chrome, firefox)', 'chrome')
+  .option('--headless', 'run headless (not recommended for login)', false)
+  .option('--no-cache', 'skip cache (always fetch fresh)')
+  .option('--cache-max-age <hours>', 'cache max age in hours', '24')
+  .option('--stop-on-error', 'stop processing on first error', false)
+  .option('--report <path>', 'save batch report to file')
+  .action(async (file, options) => {
+    try {
+      // Parse URL file
+      const urls = parseUrlFile(file);
+      console.log(`\n📋 Batch mode: ${urls.length} URLs from ${file}\n`);
+
+      if (urls.length === 0) {
+        console.error('No URLs found in file');
+        process.exit(1);
+      }
+
+      // Process batch
+      const results = await processBatch(urls, {
+        format: options.format,
+        browser: options.browser,
+        headless: options.headless,
+        useCache: options.cache,
+        cacheMaxAge: parseInt(options.cacheMaxAge) * 60 * 60 * 1000,
+        outputDir: options.outputDir,
+        stopOnError: options.stopOnError,
+      });
+
+      // Save report if requested
+      if (options.report) {
+        saveBatchReport(results, options.report);
+      }
+
+      // Exit with error code if any failed
+      if (results.failed > 0) {
+        process.exit(1);
+      }
+
+    } catch (error) {
+      logger.error(error.message);
+      process.exit(1);
+    }
+  });
+
+// List supported sites
 program
   .command('list')
   .description('List supported sites')
@@ -119,7 +195,40 @@ program
     console.log('  webfetch https://livewiki.com/ko/content/xxx # Scrape LiveWiki');
     console.log('  webfetch https://longblack.co/note/xxx       # Scrape Longblack');
     console.log('  webfetch <url> -f pdf                        # Save as PDF (auto filename)');
+    console.log('  webfetch batch urls.txt                      # Process multiple URLs');
     console.log();
+  });
+
+// Cache management command
+program
+  .command('cache')
+  .description('Manage cache')
+  .option('--stats', 'show cache statistics')
+  .option('--clear', 'clear all cache')
+  .action((options) => {
+    if (options.clear) {
+      clearAllCache();
+      console.log('✓ Cache cleared');
+    } else if (options.stats) {
+      const stats = getCacheStats();
+      console.log('\n📦 Cache Statistics\n');
+      console.log(`  Entries: ${stats.count}`);
+      console.log(`  Size:    ${(stats.size / 1024).toFixed(2)} KB`);
+
+      if (stats.entries.length > 0) {
+        console.log('\n  Recent entries:');
+        stats.entries.slice(0, 10).forEach(entry => {
+          console.log(`    - ${entry.url}`);
+          console.log(`      Cached: ${entry.cachedAt}`);
+        });
+      }
+      console.log();
+    } else {
+      console.log('\nUsage:');
+      console.log('  webfetch cache --stats   # Show cache statistics');
+      console.log('  webfetch cache --clear   # Clear all cache');
+      console.log();
+    }
   });
 
 program.parse();
