@@ -4,6 +4,7 @@ import { withRetry } from '../utils/retry.js';
 import { AuthError, ContentError } from '../utils/errors.js';
 
 const LONGBLACK_REGEX = /^https?:\/\/(www\.)?longblack\.co/;
+const HOMEPAGE_REGEX = /^https?:\/\/(www\.)?longblack\.co\/?$/;
 const log = createLogger('longblack');
 
 // Configurable selectors for content extraction
@@ -77,8 +78,18 @@ export const longblack = {
     try {
       return await withRetry(
         async () => {
-          log.info(`Scraping: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded' });
+          // Check if homepage - need to find today's article first
+          const isHomepage = HOMEPAGE_REGEX.test(url);
+          let targetUrl = url;
+
+          if (isHomepage) {
+            log.info('Homepage detected. Finding today\'s article...');
+            targetUrl = await getTodayArticleUrl(page);
+            log.info(`Today's article: ${targetUrl}`);
+          }
+
+          log.info(`Scraping: ${targetUrl}`);
+          await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
           await page.waitForTimeout(2000);
 
           const needsLogin = await checkPaywall(page);
@@ -87,11 +98,11 @@ export const longblack = {
             log.info('Login required. Please login in the browser...');
             await performLogin(page);
             log.info('Login successful!');
-            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
             await page.waitForTimeout(2000);
           }
 
-          return await extractContent(page, url);
+          return await extractContent(page, targetUrl);
         },
         {
           maxRetries: options.maxRetries ?? 3,
@@ -113,6 +124,21 @@ async function checkPaywall(page) {
   return false;
 }
 
+async function checkHomepageLogin(page) {
+  // On homepage, check for login prompt or redirect
+  if (page.url().includes('/login')) return true;
+
+  // Check for note links - if present, we're logged in
+  const hasNoteLinks = await page.$('a[href*="/note/"]');
+  if (hasNoteLinks) return false;
+
+  // Check for "로그인" button prominently displayed
+  const loginPrompt = await page.$('button:has-text("로그인"), [href*="login"]:visible');
+  if (loginPrompt) return true;
+
+  return false;
+}
+
 async function performLogin(page) {
   const loginBtn = await page.$('button:has-text("로그인"), a:has-text("로그인"), [href*="login"]');
   if (loginBtn) await loginBtn.click();
@@ -121,9 +147,58 @@ async function performLogin(page) {
   }
   log.info('Complete login in the browser window...');
   await page.waitForURL(
-    url => new URL(url).hostname.includes('longblack.co') && !url.includes('login'),
+    url => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      return urlStr.includes('longblack.co') && !urlStr.includes('login');
+    },
     { timeout: 300000 }
   );
+}
+
+async function getTodayArticleUrl(page) {
+  log.info('Navigating to Longblack homepage...');
+  await page.goto('https://longblack.co', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2000);
+
+  // Check if login needed on homepage (different check than article page)
+  const needsLogin = await checkHomepageLogin(page);
+  if (needsLogin) {
+    log.info('Login required to access homepage...');
+    await performLogin(page);
+    await page.goto('https://longblack.co', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000);
+  }
+
+  // Find today's article URL
+  // Strategy 1: Look for first article link in note section
+  const articleUrl = await page.evaluate(() => {
+    // Try data-tab="note" container first (from screenshot)
+    const noteSection = document.querySelector('[data-tab="note"]');
+    if (noteSection) {
+      const link = noteSection.querySelector('a[href*="/note/"]');
+      if (link) return link.href;
+    }
+
+    // Strategy 2: First article card with /note/ link
+    const articleLink = document.querySelector('a[href*="/note/"]');
+    if (articleLink) return articleLink.href;
+
+    // Strategy 3: Any link containing note path
+    const allLinks = Array.from(document.querySelectorAll('a[href]'));
+    const noteLink = allLinks.find(a => /\/note\/\d+/.test(a.href));
+    if (noteLink) return noteLink.href;
+
+    return null;
+  });
+
+  if (!articleUrl) {
+    throw new ContentError('Could not find today\'s article on homepage', {
+      url: 'https://longblack.co',
+      hint: 'Homepage structure may have changed',
+    });
+  }
+
+  return articleUrl;
 }
 
 async function extractContent(page, url) {

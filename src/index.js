@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getAdapter, listAdapters } from './adapters/index.js';
@@ -33,6 +33,25 @@ function generateFilename(title, ext) {
   return `${date}_${safeName}.${ext}`;
 }
 
+/**
+ * Check if article already exists in output folder (for today)
+ * Returns existing filename if found, null otherwise
+ */
+function checkExistingArticle(outputDir) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (!existsSync(outputDir)) return null;
+
+  const files = readdirSync(outputDir);
+  // Find any file that starts with today's date
+  const todayFiles = files.filter(f => f.startsWith(today));
+
+  if (todayFiles.length > 0) {
+    return todayFiles;
+  }
+  return null;
+}
+
 const program = new Command();
 
 program
@@ -50,6 +69,7 @@ program
   .option('--keep-open', 'keep browser open after scrape', false)
   .option('--no-cache', 'skip cache (always fetch fresh)')
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
+  .option('--skip-existing', 'skip if today\'s article already scraped', false)
   .action(async (url, options) => {
     try {
       const adapter = getAdapter(url);
@@ -64,6 +84,16 @@ program
       }
 
       console.log(`\n📄 webfetch - ${adapter.name}\n`);
+
+      // Check for existing article (skip-existing mode)
+      if (options.skipExisting) {
+        const existing = checkExistingArticle(OUTPUT_DIR);
+        if (existing && existing.length > 0) {
+          console.log(`⏭️  Skipping - today's article already exists:`);
+          existing.forEach(f => console.log(`   ${f}`));
+          return;
+        }
+      }
 
       let result;
       const cacheMaxAge = parseInt(options.cacheMaxAge) * 60 * 60 * 1000;
@@ -142,6 +172,7 @@ program
   .option('--no-cache', 'skip cache (always fetch fresh)')
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .option('--stop-on-error', 'stop processing on first error', false)
+  .option('--skip-existing', 'skip URLs if today\'s article exists', false)
   .option('--report <path>', 'save batch report to file')
   .action(async (file, options) => {
     try {
