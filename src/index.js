@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { getAdapter, listAdapters } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUTPUT_DIR = join(__dirname, '..', 'output');
 
 /**
  * Generate filename from title
@@ -72,19 +77,19 @@ program
         output = toMarkdown(result);
       }
 
-      // Determine output path
-      const outputPath = options.output || (format === 'pdf' || options.output === undefined
-        ? generateFilename(result.title, ext)
-        : null);
-
-      // Save or print
-      if (outputPath) {
-        writeFileSync(outputPath, output);
-        console.log(`\n✓ Saved to: ${outputPath}`);
-      } else {
-        console.log('\n' + '─'.repeat(50) + '\n');
-        console.log(output);
+      // Determine output path (default: output/ folder)
+      let outputPath = options.output;
+      if (!outputPath) {
+        // Ensure output directory exists
+        if (!existsSync(OUTPUT_DIR)) {
+          mkdirSync(OUTPUT_DIR, { recursive: true });
+        }
+        outputPath = join(OUTPUT_DIR, generateFilename(result.title, ext));
       }
+
+      // Save file
+      writeFileSync(outputPath, output);
+      console.log(`\n✓ Saved to: ${outputPath}`);
 
     } catch (error) {
       console.error(`\n✖ Error: ${error.message}`);
