@@ -74,23 +74,55 @@ async function extractYouTube(page, youtubeUrl) {
   await input.fill(youtubeUrl);
   await page.waitForTimeout(1000);
 
-  // Click the submit button (blue arrow button)
+  // Click the submit button (blue arrow SVG button)
   console.log('→ Clicking submit button...');
-  const submitButton = await page.$('button[type="submit"], button:has(svg), button[class*="submit"], button[class*="send"]');
-  if (submitButton) {
-    await submitButton.click();
-  } else {
-    // Fallback: try to find button near the input
-    const buttons = await page.$$('button');
-    for (const btn of buttons) {
-      const isVisible = await btn.isVisible();
-      if (isVisible) {
-        const bbox = await btn.boundingBox();
-        if (bbox && bbox.x > 400) {  // Button on the right side
-          await btn.click();
-          break;
+
+  // Find the SVG submit button by its fill color or path
+  const clicked = await page.evaluate(() => {
+    // Method 1: Find SVG with blue fill color
+    const svgs = document.querySelectorAll('svg');
+    for (const svg of svgs) {
+      const path = svg.querySelector('path[fill="#092D52"]');
+      if (path) {
+        svg.parentElement?.click();
+        return true;
+      }
+    }
+
+    // Method 2: Find clickable element near "유튜브 요약" text
+    const spans = document.querySelectorAll('span, div');
+    for (const span of spans) {
+      if (span.textContent?.includes('유튜브 요약')) {
+        const parent = span.parentElement;
+        const sibling = parent?.nextElementSibling || span.nextElementSibling;
+        if (sibling) {
+          sibling.click();
+          return true;
         }
       }
+    }
+
+    // Method 3: Find any SVG button on the right side of input area
+    const inputArea = document.querySelector('input, textarea');
+    if (inputArea) {
+      const container = inputArea.closest('div[class*="input"]') || inputArea.parentElement?.parentElement;
+      if (container) {
+        const svg = container.querySelector('svg');
+        if (svg) {
+          svg.parentElement?.click();
+          return true;
+        }
+      }
+    }
+
+    return false;
+  });
+
+  if (!clicked) {
+    // Fallback: click using Playwright locator
+    const svgButton = await page.$('svg[viewBox="0 32 32"], svg path[fill="#092D52"]');
+    if (svgButton) {
+      await svgButton.click();
     }
   }
   console.log('→ Processing video... (this may take a while)');
