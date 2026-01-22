@@ -45,6 +45,10 @@ webfetch <url> --keep-open  # Keep browser open
 ### LiveWiki
 - **YouTube URL**: LiveWiki 접속 → 로그인 → URL 입력 → 추출 대기 → 결과 스크랩
 - **Content URL**: 직접 스크랩
+- **추출 섹션**:
+  - 핵심 요약 (Key Summary)
+  - 타임라인 (Timeline with timestamps)
+  - 아티클 (Prose-style article content)
 
 ### Longblack
 - 기사 본문만 추출 (CONFIG 기반 필터링)
