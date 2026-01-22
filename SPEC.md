@@ -213,14 +213,73 @@ output/YYYY-MM-DD_제목.ext
 - 제목: 최대 80자, 특수문자 제거, 공백→언더스코어
 - 확장자: md, pdf, json
 
+## Utils 모듈
+
+### Logger (`utils/logger.js`)
+
+컬러 출력과 타임스탬프를 지원하는 로깅 시스템.
+
+```javascript
+import { createLogger } from './utils/logger.js';
+const log = createLogger('mymodule');
+
+log.info('Information message');
+log.warn('Warning message');
+log.error('Error message');
+log.debug('Debug message');
+```
+
+**출력 형식:**
+```
+HH:MM:SS LEVEL [prefix] message
+05:35:13 INFO  [livewiki] Scraping: https://...
+```
+
+### Errors (`utils/errors.js`)
+
+커스텀 에러 클래스 계층.
+
+| 클래스 | 코드 | 재시도 |
+|--------|------|--------|
+| `WebfetchError` | UNKNOWN_ERROR | - |
+| `NetworkError` | NETWORK_ERROR | ✅ |
+| `TimeoutError` | TIMEOUT_ERROR | ✅ |
+| `AuthError` | AUTH_ERROR | ❌ |
+| `ContentError` | CONTENT_ERROR | ❌ |
+| `AdapterError` | ADAPTER_ERROR | ❌ |
+
+### Retry (`utils/retry.js`)
+
+Exponential backoff을 지원하는 재시도 로직.
+
+```javascript
+import { withRetry } from './utils/retry.js';
+
+const result = await withRetry(
+  async () => fetchData(),
+  {
+    maxRetries: 3,
+    initialDelay: 1000,  // 1초
+    maxDelay: 10000,     // 10초
+    backoffFactor: 2,    // 지수 증가
+  }
+);
+```
+
+**재시도 조건:**
+- `NetworkError`, `TimeoutError`: 재시도
+- `AuthError`, `ContentError`: 재시도 안함
+- Playwright 에러 (`net::ERR_*`, `Timeout`): 재시도
+
 ## 에러 처리
 
-| 상황 | 처리 |
-|------|------|
-| 어댑터 없음 | 지원 URL 목록 출력 후 종료 |
-| 로그인 필요 | 브라우저에서 로그인 요청, 5분 타임아웃 |
-| 네트워크 오류 | 에러 메시지 출력 후 종료 |
-| 콘텐츠 없음 | 빈 결과 반환 |
+| 상황 | 에러 클래스 | 처리 |
+|------|------------|------|
+| 어댑터 없음 | `AdapterError` | 지원 URL 목록 출력 후 종료 |
+| 로그인 필요 | `AuthError` | 브라우저에서 로그인 요청, 5분 타임아웃 |
+| 네트워크 오류 | `NetworkError` | 3회 재시도 후 종료 |
+| 타임아웃 | `TimeoutError` | 3회 재시도 후 종료 |
+| 콘텐츠 없음 | `ContentError` | 빈 결과 반환 |
 
 ## 보안 고려사항
 

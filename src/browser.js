@@ -1,12 +1,14 @@
 import { chromium, firefox } from 'playwright';
-import { homedir } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createLogger } from './utils/logger.js';
+import { NetworkError } from './utils/errors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUTH_DIR = join(__dirname, '../auth');
 
 const BROWSERS = { chrome: chromium, firefox };
+const log = createLogger('browser');
 
 let context = null;
 
@@ -20,22 +22,31 @@ export async function launch(options = {}) {
   const launcher = BROWSERS[browserType];
 
   if (!launcher) {
-    throw new Error(`Unsupported browser: ${browserType}`);
+    throw new NetworkError(`Unsupported browser: ${browserType}`, { browserType });
   }
 
   const profileDir = join(AUTH_DIR, `${browserType}-profile`);
 
-  console.log(`→ Launching ${browserType}...`);
+  log.info(`Launching ${browserType}...`);
 
-  context = await launcher.launchPersistentContext(profileDir, {
-    headless: options.headless ?? false,
-    viewport: { width: 1280, height: 800 },
-    args: browserType === 'chrome'
-      ? ['--disable-blink-features=AutomationControlled']
-      : [],
-  });
+  try {
+    context = await launcher.launchPersistentContext(profileDir, {
+      headless: options.headless ?? false,
+      viewport: { width: 1280, height: 800 },
+      args: browserType === 'chrome'
+        ? ['--disable-blink-features=AutomationControlled']
+        : [],
+    });
 
-  return context;
+    log.debug('Browser launched successfully');
+    return context;
+  } catch (error) {
+    log.error(`Failed to launch browser: ${error.message}`);
+    throw new NetworkError(`Failed to launch ${browserType}: ${error.message}`, {
+      browserType,
+      originalError: error.name,
+    });
+  }
 }
 
 /**

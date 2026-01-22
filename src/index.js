@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import { getAdapter, listAdapters } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
+import { WebfetchError } from './utils/errors.js';
+import { logger } from './utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -92,7 +94,14 @@ program
       console.log(`\n✓ Saved to: ${outputPath}`);
 
     } catch (error) {
-      console.error(`\n✖ Error: ${error.message}`);
+      if (error instanceof WebfetchError) {
+        logger.error(`[${error.code}] ${error.message}`);
+        if (error.details && Object.keys(error.details).length > 0) {
+          logger.debug(`Details: ${JSON.stringify(error.details)}`);
+        }
+      } else {
+        logger.error(error.message);
+      }
       process.exit(1);
     }
   });

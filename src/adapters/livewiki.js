@@ -1,8 +1,13 @@
 import { launch, getPage, close } from '../browser.js';
+import { createLogger } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
+import { TimeoutError, ContentError, AuthError } from '../utils/errors.js';
 
 const BASE_URL = 'https://livewiki.com';
 const YOUTUBE_REGEX = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//;
 const LIVEWIKI_CONTENT_REGEX = /^https?:\/\/(www\.)?livewiki\.com\/\w+\/content\//;
+
+const log = createLogger('livewiki');
 
 // Configurable extraction settings
 const CONFIG = {
@@ -46,10 +51,20 @@ export const livewiki = {
     const page = await getPage();
 
     try {
-      if (YOUTUBE_REGEX.test(url)) {
-        return await extractYouTube(page, url);
-      }
-      return await scrapeContent(page, url);
+      return await withRetry(
+        async () => {
+          if (YOUTUBE_REGEX.test(url)) {
+            return await extractYouTube(page, url);
+          }
+          return await scrapeContent(page, url);
+        },
+        {
+          maxRetries: options.maxRetries ?? 3,
+          onRetry: (error, attempt) => {
+            log.warn(`Retry ${attempt}: ${error.message}`);
+          },
+        }
+      );
     } finally {
       if (!options.keepOpen) await close();
     }
@@ -57,25 +72,25 @@ export const livewiki = {
 };
 
 async function extractYouTube(page, youtubeUrl) {
-  console.log('→ YouTube extraction mode');
+  log.info('YouTube extraction mode');
 
   await page.goto(`${BASE_URL}/ko`);
   await page.waitForLoadState('networkidle');
 
   const isLoggedIn = await checkLogin(page);
   if (!isLoggedIn) {
-    console.log('→ Login required. Please login in the browser...');
+    log.info('Login required. Please login in the browser...');
     await waitForLogin(page);
-    console.log('→ Login successful!');
+    log.info('Login successful!');
   }
 
-  console.log(`→ Inputting YouTube URL: ${youtubeUrl}`);
+  log.info(`Inputting YouTube URL: ${youtubeUrl}`);
   const input = await page.waitForSelector('input[type="text"], input[type="url"], textarea');
   await input.fill(youtubeUrl);
   await page.waitForTimeout(1000);
 
   // Click the submit button (blue arrow SVG button)
-  console.log('→ Clicking submit button...');
+  log.info('Clicking submit button...');
 
   // Find the SVG submit button by its fill color or path
   const clicked = await page.evaluate(() => {
@@ -125,7 +140,7 @@ async function extractYouTube(page, youtubeUrl) {
       await svgButton.click();
     }
   }
-  console.log('→ Processing video... (this may take a while)');
+  log.info('Processing video... (this may take a while)');
 
   // Wait for either content page or login modal
   await page.waitForTimeout(3000);
@@ -133,7 +148,7 @@ async function extractYouTube(page, youtubeUrl) {
   // Check if login modal appeared
   const currentUrl = page.url();
   if (currentUrl.includes('login-modal') || currentUrl.includes('login')) {
-    console.log('→ Login modal detected. Please login in the browser...');
+    log.info('Login modal detected. Please login in the browser...');
     await page.waitForURL(/\/content\//, { timeout: 300000 });
   } else if (!currentUrl.includes('/content/')) {
     // Wait for content page
@@ -141,13 +156,13 @@ async function extractYouTube(page, youtubeUrl) {
   }
 
   const resultUrl = page.url();
-  console.log(`→ Extraction complete: ${resultUrl}`);
+  log.info(`Extraction complete: ${resultUrl}`);
 
   return await scrapeContent(page, resultUrl);
 }
 
 async function scrapeContent(page, url) {
-  console.log(`→ Scraping: ${url}`);
+  log.info(`Scraping: ${url}`);
 
   await page.goto(url);
   await page.waitForLoadState('networkidle');
@@ -335,7 +350,7 @@ async function scrapeContent(page, url) {
     }
 
     if (articleTab) {
-      console.log('→ Clicking 아티클 tab...');
+      log.info('Clicking 아티클 tab...');
       await articleTab.click();
       await page.waitForTimeout(3000);
 
@@ -397,13 +412,13 @@ async function scrapeContent(page, url) {
         articleHtml = '<h2>아티클</h2>' + articleHtml;
       } else {
         articleHtml = '';
-        console.log('→ 아티클 content not found or too short');
+        log.info('아티클 content not found or too short');
       }
     } else {
-      console.log('→ 아티클 tab not found');
+      log.info('아티클 tab not found');
     }
   } catch (e) {
-    console.log('→ 아티클 tab error:', e.message);
+    log.info('아티클 tab error:', e.message);
   }
 
   // Combine all sections
@@ -427,7 +442,7 @@ async function scrapeContent(page, url) {
     }, CONFIG);
   }
 
-  console.log(`→ Extracted: ${result.title}`);
+  log.info(`Extracted: ${result.title}`);
 
   return {
     title: result.title,
@@ -450,7 +465,7 @@ async function checkLogin(page) {
 }
 
 async function waitForLogin(page) {
-  console.log('→ Waiting for login (5 min timeout)...');
+  log.info('Waiting for login (5 min timeout)...');
   await page.waitForFunction(() => {
     // Check if login button still exists
     const elements = document.querySelectorAll('button, a, span');

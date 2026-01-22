@@ -1,6 +1,10 @@
 import { launch, getPage, close } from '../browser.js';
+import { createLogger } from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
+import { AuthError, ContentError } from '../utils/errors.js';
 
 const LONGBLACK_REGEX = /^https?:\/\/(www\.)?longblack\.co/;
+const log = createLogger('longblack');
 
 // Configurable selectors for content extraction
 const CONFIG = {
@@ -71,21 +75,31 @@ export const longblack = {
     page.setDefaultTimeout(60000);
 
     try {
-      console.log(`→ Scraping: ${url}`);
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2000);
+      return await withRetry(
+        async () => {
+          log.info(`Scraping: ${url}`);
+          await page.goto(url, { waitUntil: 'domcontentloaded' });
+          await page.waitForTimeout(2000);
 
-      const needsLogin = await checkPaywall(page);
+          const needsLogin = await checkPaywall(page);
 
-      if (needsLogin) {
-        console.log('→ Login required. Please login in the browser...');
-        await performLogin(page);
-        console.log('→ Login successful!');
-        await page.goto(url, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(2000);
-      }
+          if (needsLogin) {
+            log.info('Login required. Please login in the browser...');
+            await performLogin(page);
+            log.info('Login successful!');
+            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.waitForTimeout(2000);
+          }
 
-      return await extractContent(page, url);
+          return await extractContent(page, url);
+        },
+        {
+          maxRetries: options.maxRetries ?? 3,
+          onRetry: (error, attempt) => {
+            log.warn(`Retry ${attempt}: ${error.message}`);
+          },
+        }
+      );
     } finally {
       if (!options.keepOpen) await close();
     }
@@ -105,7 +119,7 @@ async function performLogin(page) {
   if (!page.url().includes('login')) {
     await page.goto('https://www.longblack.co/login', { waitUntil: 'domcontentloaded' });
   }
-  console.log('→ Complete login in the browser window...');
+  log.info('Complete login in the browser window...');
   await page.waitForURL(
     url => new URL(url).hostname.includes('longblack.co') && !url.includes('login'),
     { timeout: 300000 }
@@ -181,7 +195,7 @@ async function extractContent(page, url) {
     description: document.querySelector('meta[property="og:description"]')?.content,
   }));
 
-  console.log(`→ Extracted: ${title} (${html?.length || 0} chars)`);
+  log.info(`Extracted: ${title} (${html?.length || 0} chars)`);
 
   return { title, html, url, metadata };
 }

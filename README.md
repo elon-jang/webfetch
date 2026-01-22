@@ -115,9 +115,13 @@ webfetch/
 │   │   ├── index.js       # 어댑터 레지스트리
 │   │   ├── livewiki.js    # LiveWiki (YouTube 추출 + 콘텐츠 스크랩)
 │   │   └── longblack.js   # Longblack (기사 스크랩)
-│   └── formatters/        # 출력 포맷터
-│       ├── markdown.js    # Turndown 기반 변환
-│       └── pdf.js         # Styled PDF 생성
+│   ├── formatters/        # 출력 포맷터
+│   │   ├── markdown.js    # Turndown 기반 변환
+│   │   └── pdf.js         # Styled PDF 생성
+│   └── utils/             # 유틸리티 모듈
+│       ├── logger.js      # 로깅 시스템
+│       ├── errors.js      # 커스텀 에러 클래스
+│       └── retry.js       # 재시도 로직
 ├── output/                # 스크래핑 결과 저장
 ├── auth/                  # 브라우저 프로필 (gitignored)
 └── package.json
@@ -168,10 +172,10 @@ export function toNewFormat(result) {
 
 ## Roadmap
 
-### Phase 1: 안정성 개선
-- [ ] 에러 핸들링 강화 (네트워크 오류, 타임아웃)
-- [ ] 재시도 로직 추가 (3회 재시도)
-- [ ] 로깅 시스템 구축 (winston/pino)
+### Phase 1: 안정성 개선 ✅
+- [x] 에러 핸들링 강화 (네트워크 오류, 타임아웃)
+- [x] 재시도 로직 추가 (3회 재시도, exponential backoff)
+- [x] 로깅 시스템 구축 (커스텀 로거, 컬러 출력)
 
 ### Phase 2: 기능 확장
 - [ ] 배치 처리 지원 (URL 목록 파일 입력)
