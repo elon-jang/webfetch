@@ -76,7 +76,18 @@ async function extractYouTube(page, youtubeUrl) {
   await page.keyboard.press('Enter');
   console.log('→ Processing video... (this may take a while)');
 
-  await page.waitForURL(/\/content\//, { timeout: 300000 });
+  // Wait for either content page or login modal
+  await page.waitForTimeout(3000);
+
+  // Check if login modal appeared
+  const currentUrl = page.url();
+  if (currentUrl.includes('login-modal') || currentUrl.includes('login')) {
+    console.log('→ Login modal detected. Please login in the browser...');
+    await page.waitForURL(/\/content\//, { timeout: 300000 });
+  } else if (!currentUrl.includes('/content/')) {
+    // Wait for content page
+    await page.waitForURL(/\/content\//, { timeout: 300000 });
+  }
 
   const resultUrl = page.url();
   console.log(`→ Extraction complete: ${resultUrl}`);
@@ -376,16 +387,36 @@ async function scrapeContent(page, url) {
 }
 
 async function checkLogin(page) {
-  const loginButton = await page.$('button:has-text("로그인"), a:has-text("로그인"), [href*="login"]');
-  return !loginButton;
+  // Check if login button exists
+  const hasLoginButton = await page.evaluate(() => {
+    const elements = document.querySelectorAll('button, a, span');
+    for (const el of elements) {
+      if (el.textContent?.trim() === '로그인') return true;
+    }
+    return false;
+  });
+  return !hasLoginButton;
 }
 
 async function waitForLogin(page) {
+  console.log('→ Waiting for login (5 min timeout)...');
   await page.waitForFunction(() => {
-    const loginBtn = document.querySelector('button:has-text("로그인"), a:has-text("로그인")');
-    const userAvatar = document.querySelector('[class*="avatar"], [class*="profile"]');
-    return !loginBtn || userAvatar;
-  }, { timeout: 300000 });
+    // Check if login button still exists
+    const elements = document.querySelectorAll('button, a, span');
+    let hasLoginBtn = false;
+    for (const el of elements) {
+      if (el.textContent?.trim() === '로그인') {
+        hasLoginBtn = true;
+        break;
+      }
+    }
+
+    // Check if user is logged in (avatar or profile element exists)
+    const userAvatar = document.querySelector('[class*="avatar"], [class*="profile"], [class*="user-menu"]');
+
+    // Return true when logged in (no login button OR avatar exists)
+    return !hasLoginBtn || userAvatar;
+  }, { timeout: 300000, polling: 1000 });
 }
 
 export default livewiki;
