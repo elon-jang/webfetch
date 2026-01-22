@@ -72,8 +72,27 @@ async function extractYouTube(page, youtubeUrl) {
   console.log(`→ Inputting YouTube URL: ${youtubeUrl}`);
   const input = await page.waitForSelector('input[type="text"], input[type="url"], textarea');
   await input.fill(youtubeUrl);
+  await page.waitForTimeout(1000);
 
-  await page.keyboard.press('Enter');
+  // Click the submit button (blue arrow button)
+  console.log('→ Clicking submit button...');
+  const submitButton = await page.$('button[type="submit"], button:has(svg), button[class*="submit"], button[class*="send"]');
+  if (submitButton) {
+    await submitButton.click();
+  } else {
+    // Fallback: try to find button near the input
+    const buttons = await page.$$('button');
+    for (const btn of buttons) {
+      const isVisible = await btn.isVisible();
+      if (isVisible) {
+        const bbox = await btn.boundingBox();
+        if (bbox && bbox.x > 400) {  // Button on the right side
+          await btn.click();
+          break;
+        }
+      }
+    }
+  }
   console.log('→ Processing video... (this may take a while)');
 
   // Wait for either content page or login modal
