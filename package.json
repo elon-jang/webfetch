@@ -1,0 +1,17 @@
+{
+  "name": "webfetch",
+  "version": "1.0.0",
+  "description": "Web scraping CLI with Playwright",
+  "type": "module",
+  "bin": {
+    "webfetch": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0",
+    "commander": "^12.0.0",
+    "turndown": "^7.1.2"
+  }
+}
