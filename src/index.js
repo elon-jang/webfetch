@@ -62,7 +62,7 @@ program
 // Single URL scrape (default command)
 program
   .argument('<url>', 'URL to scrape (YouTube URL or content URL)')
-  .option('-f, --format <type>', 'output format (markdown, json, pdf)', 'markdown')
+  .option('-f, --format <type>', 'output format (markdown, json, pdf). Default: both md & pdf')
   .option('-o, --output <path>', 'save to file (auto-generated if not specified for pdf)')
   .option('-b, --browser <type>', 'browser (chrome, firefox)', 'chrome')
   .option('--headless', 'run headless (not recommended for login)', false)
@@ -121,32 +121,60 @@ program
         }
       }
 
-      // Format output
-      const format = options.format.toLowerCase();
-      let output;
-      let ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
-
-      if (format === 'json') {
-        output = JSON.stringify(result, null, 2);
-      } else if (format === 'pdf') {
-        output = await toPdf(result);
-      } else {
-        output = toMarkdown(result);
+      // Ensure output directory exists
+      if (!existsSync(OUTPUT_DIR)) {
+        mkdirSync(OUTPUT_DIR, { recursive: true });
       }
 
-      // Determine output path (default: output/ folder)
-      let outputPath = options.output;
-      if (!outputPath) {
-        // Ensure output directory exists
-        if (!existsSync(OUTPUT_DIR)) {
-          mkdirSync(OUTPUT_DIR, { recursive: true });
+      // Format output - default to both md & pdf if not specified
+      const format = options.format?.toLowerCase();
+      const savedFiles = [];
+
+      if (options.output) {
+        // Custom output path - use specified format or default to markdown
+        const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
+        let output;
+        if (format === 'json') {
+          output = JSON.stringify(result, null, 2);
+        } else if (format === 'pdf') {
+          output = await toPdf(result);
+        } else {
+          output = toMarkdown(result);
         }
-        outputPath = join(OUTPUT_DIR, generateFilename(result.title, ext));
+        writeFileSync(options.output, output);
+        savedFiles.push(options.output);
+      } else if (!format) {
+        // No format specified - output both markdown and PDF
+        const mdPath = join(OUTPUT_DIR, generateFilename(result.title, 'md'));
+        const pdfPath = join(OUTPUT_DIR, generateFilename(result.title, 'pdf'));
+
+        // Save markdown
+        writeFileSync(mdPath, toMarkdown(result));
+        savedFiles.push(mdPath);
+
+        // Save PDF
+        const pdfOutput = await toPdf(result);
+        writeFileSync(pdfPath, pdfOutput);
+        savedFiles.push(pdfPath);
+      } else {
+        // Specific format requested
+        const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
+        let output;
+        if (format === 'json') {
+          output = JSON.stringify(result, null, 2);
+        } else if (format === 'pdf') {
+          output = await toPdf(result);
+        } else {
+          output = toMarkdown(result);
+        }
+        const outputPath = join(OUTPUT_DIR, generateFilename(result.title, ext));
+        writeFileSync(outputPath, output);
+        savedFiles.push(outputPath);
       }
 
-      // Save file
-      writeFileSync(outputPath, output);
-      console.log(`\n✓ Saved to: ${outputPath}`);
+      // Print saved files
+      console.log();
+      savedFiles.forEach(f => console.log(`✓ Saved to: ${f}`));
 
     } catch (error) {
       if (error instanceof WebfetchError) {

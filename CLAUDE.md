@@ -7,8 +7,12 @@ Web scraping CLI for LiveWiki & Longblack. Extracts YouTube video summaries via 
 
 ### Run CLI
 ```bash
-# Single URL
+# Single URL (기본: MD + PDF 둘 다 출력)
 node src/index.js "https://youtu.be/VIDEO_ID"
+
+# 특정 포맷만 출력
+node src/index.js "https://youtu.be/VIDEO_ID" -f markdown
+node src/index.js "https://youtu.be/VIDEO_ID" -f pdf
 
 # Longblack - 오늘의 기사 자동 스크랩
 node src/index.js "https://longblack.co"
@@ -125,6 +129,7 @@ npx playwright install chromium firefox
 - Batch reports in JSON
 - Longblack 홈페이지 → 오늘의 기사 자동 감지
 - `--skip-existing` 중복 스크랩 방지 옵션
+- 기본 출력: MD + PDF 동시 저장 (포맷 미지정 시)
 
 ### Planned (Phase 3+)
 - New adapters: Vrew, Notion, Medium, Substack
