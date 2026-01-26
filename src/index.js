@@ -8,30 +8,14 @@ import { getAdapter, listAdapters } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
 import { WebfetchError } from './utils/errors.js';
-import { logger } from './utils/logger.js';
+import { logger, createLogger } from './utils/logger.js';
+const log = createLogger('cli');
 import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
 import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
+import { generateFilename } from './utils/filename.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
-
-/**
- * Generate filename from title
- * Format: YYYY-MM-DD_제목.ext
- */
-function generateFilename(title, ext) {
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-
-  // Sanitize title for filename
-  let safeName = (title || 'untitled')
-    .replace(/[\/\\:*?"<>|]/g, '')  // Remove invalid chars
-    .replace(/\s+/g, '_')            // Spaces to underscores
-    .replace(/_+/g, '_')             // Multiple underscores to single
-    .replace(/^_|_$/g, '')           // Trim underscores
-    .slice(0, 80);                   // Max 80 chars
-
-  return `${date}_${safeName}.${ext}`;
-}
 
 /**
  * Check if article already exists in output folder (for today)
@@ -75,22 +59,22 @@ program
       const adapter = getAdapter(url);
 
       if (!adapter) {
-        console.error(`✖ No adapter found for: ${url}`);
-        console.error('\nSupported URLs:');
-        console.error('  - YouTube URLs (via LiveWiki)');
-        console.error('  - https://livewiki.com/*/content/*');
-        console.error('  - https://longblack.co/*');
+        log.error(`No adapter found for: ${url}`);
+        log.error('Supported URLs:');
+        log.error('  - YouTube URLs (via LiveWiki)');
+        log.error('  - https://livewiki.com/*/content/*');
+        log.error('  - https://longblack.co/*');
         process.exit(1);
       }
 
-      console.log(`\n📄 webfetch - ${adapter.name}\n`);
+      log.info(`webfetch - ${adapter.name}`);
 
       // Check for existing article (skip-existing mode)
       if (options.skipExisting) {
         const existing = checkExistingArticle(OUTPUT_DIR);
         if (existing && existing.length > 0) {
-          console.log(`⏭️  Skipping - today's article already exists:`);
-          existing.forEach(f => console.log(`   ${f}`));
+          log.info(`Skipping - today's article already exists:`);
+          existing.forEach(f => log.info(`  ${f}`));
           return;
         }
       }
@@ -102,7 +86,7 @@ program
       if (options.cache && hasCache(url, cacheMaxAge)) {
         const cached = getCache(url);
         if (cached?.result) {
-          console.log('📦 Using cached result');
+          log.info('Using cached result');
           result = cached.result;
         }
       }
@@ -173,8 +157,7 @@ program
       }
 
       // Print saved files
-      console.log();
-      savedFiles.forEach(f => console.log(`✓ Saved to: ${f}`));
+      savedFiles.forEach(f => log.info(`Saved to: ${f}`));
 
     } catch (error) {
       if (error instanceof WebfetchError) {
@@ -206,10 +189,10 @@ program
     try {
       // Parse URL file
       const urls = parseUrlFile(file);
-      console.log(`\n📋 Batch mode: ${urls.length} URLs from ${file}\n`);
+      log.info(`Batch mode: ${urls.length} URLs from ${file}`);
 
       if (urls.length === 0) {
-        console.error('No URLs found in file');
+        log.error('No URLs found in file');
         process.exit(1);
       }
 
@@ -245,17 +228,16 @@ program
   .command('list')
   .description('List supported sites')
   .action(() => {
-    console.log('\nSupported sites:\n');
+    log.info('Supported sites:');
     listAdapters().forEach(adapter => {
-      console.log(`  ${adapter.name}`);
+      log.info(`  ${adapter.name}`);
     });
-    console.log('\nExamples:');
-    console.log('  webfetch https://youtube.com/watch?v=xxx     # Extract via LiveWiki');
-    console.log('  webfetch https://livewiki.com/ko/content/xxx # Scrape LiveWiki');
-    console.log('  webfetch https://longblack.co/note/xxx       # Scrape Longblack');
-    console.log('  webfetch <url> -f pdf                        # Save as PDF (auto filename)');
-    console.log('  webfetch batch urls.txt                      # Process multiple URLs');
-    console.log();
+    log.info('Examples:');
+    log.info('  webfetch https://youtube.com/watch?v=xxx     # Extract via LiveWiki');
+    log.info('  webfetch https://livewiki.com/ko/content/xxx # Scrape LiveWiki');
+    log.info('  webfetch https://longblack.co/note/xxx       # Scrape Longblack');
+    log.info('  webfetch <url> -f pdf                        # Save as PDF (auto filename)');
+    log.info('  webfetch batch urls.txt                      # Process multiple URLs');
   });
 
 // Cache management command
@@ -267,26 +249,24 @@ program
   .action((options) => {
     if (options.clear) {
       clearAllCache();
-      console.log('✓ Cache cleared');
+      log.info('Cache cleared');
     } else if (options.stats) {
       const stats = getCacheStats();
-      console.log('\n📦 Cache Statistics\n');
-      console.log(`  Entries: ${stats.count}`);
-      console.log(`  Size:    ${(stats.size / 1024).toFixed(2)} KB`);
+      log.info('Cache Statistics');
+      log.info(`  Entries: ${stats.count}`);
+      log.info(`  Size:    ${(stats.size / 1024).toFixed(2)} KB`);
 
       if (stats.entries.length > 0) {
-        console.log('\n  Recent entries:');
+        log.info('  Recent entries:');
         stats.entries.slice(0, 10).forEach(entry => {
-          console.log(`    - ${entry.url}`);
-          console.log(`      Cached: ${entry.cachedAt}`);
+          log.info(`    - ${entry.url}`);
+          log.info(`      Cached: ${entry.cachedAt}`);
         });
       }
-      console.log();
     } else {
-      console.log('\nUsage:');
-      console.log('  webfetch cache --stats   # Show cache statistics');
-      console.log('  webfetch cache --clear   # Clear all cache');
-      console.log();
+      log.info('Usage:');
+      log.info('  webfetch cache --stats   # Show cache statistics');
+      log.info('  webfetch cache --clear   # Clear all cache');
     }
   });
 

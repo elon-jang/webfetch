@@ -1,4 +1,6 @@
 import { chromium } from 'playwright';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('pdf');
 
 /**
  * Generate PDF from scraped content
@@ -67,7 +69,7 @@ export async function toPdf(result, options = {}) {
 </body>
 </html>`;
 
-  console.log('→ Generating PDF...');
+  log.info('Generating PDF...');
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
 

@@ -1,17 +1,42 @@
 {
   "name": "webfetch",
   "version": "1.0.0",
-  "description": "Web scraping CLI with Playwright",
+  "description": "Web scraping CLI for YouTube summaries (via LiveWiki) and Longblack articles to Markdown/PDF",
   "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "web-scraping",
+    "youtube",
+    "longblack",
+    "livewiki",
+    "markdown",
+    "pdf",
+    "playwright",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elon-jang/webfetch.git"
+  },
   "bin": {
     "webfetch": "./src/index.js"
   },
+  "files": [
+    "src/**",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "playwright": "^1.57.0",
     "commander": "^12.0.0",
+    "playwright": "^1.57.0",
     "turndown": "^7.1.2"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }

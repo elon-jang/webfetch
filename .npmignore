@@ -1,0 +1,19 @@
+# Development
+test/
+.cache/
+auth/
+output/
+*.test.js
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Docs (dev only)
+CLAUDE.md
+SPEC.md
+*.txt

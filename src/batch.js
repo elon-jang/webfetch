@@ -7,24 +7,11 @@ import { toPdf } from './formatters/pdf.js';
 import { hasCache, getCache, setCache } from './utils/cache.js';
 import { createLogger } from './utils/logger.js';
 import { WebfetchError } from './utils/errors.js';
+import { generateFilename } from './utils/filename.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
 const log = createLogger('batch');
-
-/**
- * Generate filename from title
- */
-function generateFilename(title, ext) {
-  const date = new Date().toISOString().slice(0, 10);
-  let safeName = (title || 'untitled')
-    .replace(/[\/\\:*?"<>|]/g, '')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    .slice(0, 80);
-  return `${date}_${safeName}.${ext}`;
-}
 
 /**
  * Parse URL list from file
@@ -199,26 +186,24 @@ export async function processBatch(urls, options = {}) {
  * Print batch summary
  */
 function printSummary(results) {
-  console.log('\n' + '='.repeat(50));
-  console.log('📊 Batch Summary');
-  console.log('='.repeat(50));
-  console.log(`Total:      ${results.total}`);
-  console.log(`Success:    ${results.success} (${results.fromCache} from cache)`);
-  console.log(`Failed:     ${results.failed}`);
-  console.log(`Skipped:    ${results.skipped}`);
-  console.log('='.repeat(50));
+  log.info('='.repeat(50));
+  log.info('Batch Summary');
+  log.info('='.repeat(50));
+  log.info(`Total:      ${results.total}`);
+  log.info(`Success:    ${results.success} (${results.fromCache} from cache)`);
+  log.info(`Failed:     ${results.failed}`);
+  log.info(`Skipped:    ${results.skipped}`);
+  log.info('='.repeat(50));
 
   if (results.failed > 0) {
-    console.log('\nFailed URLs:');
+    log.warn('Failed URLs:');
     results.items
       .filter(item => item.status === 'failed')
       .forEach(item => {
-        console.log(`  - ${item.url}`);
-        console.log(`    Error: ${item.error}`);
+        log.warn(`  - ${item.url}`);
+        log.warn(`    Error: ${item.error}`);
       });
   }
-
-  console.log();
 }
 
 /**
