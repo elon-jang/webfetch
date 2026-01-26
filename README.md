@@ -15,8 +15,11 @@ npx playwright install chromium firefox
 # YouTube 영상 → LiveWiki 요약 추출
 node src/index.js "https://youtu.be/VIDEO_ID"
 
-# 결과는 output/ 폴더에 자동 저장됩니다
-# 예: output/2026-01-22_영상_제목.md
+# Longblack 오늘의 기사 자동 스크랩
+node src/index.js "https://longblack.co"
+
+# 결과는 output/ 폴더에 Markdown + PDF로 자동 저장됩니다
+# 예: output/2026-01-26_기사_제목.md + .pdf
 ```
 
 ## Usage Examples
@@ -50,17 +53,23 @@ node src/index.js "https://livewiki.com/ko/content/article-slug"
 ```bash
 # Longblack 기사 URL
 node src/index.js "https://longblack.co/note/1234"
+
+# 홈페이지 → 오늘의 기사 자동 감지
+node src/index.js "https://longblack.co"
 ```
 
-> ⚠️ 유료 기사는 로그인이 필요합니다.
+> ⚠️ 유료 기사는 로그인이 필요합니다. 첫 실행 시 브라우저가 열리면 로그인하세요.
 
 ### 4. 출력 형식 지정
 
 ```bash
-# Markdown (기본값)
+# 기본값: Markdown + PDF 동시 출력
+node src/index.js "https://youtu.be/VIDEO_ID"
+
+# Markdown만
 node src/index.js "https://youtu.be/VIDEO_ID" -f markdown
 
-# PDF
+# PDF만
 node src/index.js "https://youtu.be/VIDEO_ID" -f pdf
 
 # JSON (메타데이터 포함)
@@ -70,7 +79,7 @@ node src/index.js "https://youtu.be/VIDEO_ID" -f json
 ### 5. 출력 경로 지정
 
 ```bash
-# 기본: output/YYYY-MM-DD_제목.md
+# 기본: output/YYYY-MM-DD_제목.md + .pdf
 node src/index.js "https://youtu.be/VIDEO_ID"
 
 # 사용자 지정 경로
@@ -127,17 +136,21 @@ node src/index.js cache --stats
 node src/index.js cache --clear
 ```
 
-### 9. 스케줄러 연동 (cron)
+### 9. 중복 스크랩 방지
 
 ```bash
-# crontab에 등록 (매일 오전 9시 실행)
-crontab -e
+# 오늘 날짜 파일이 이미 있으면 스킵
+node src/index.js "https://longblack.co" --skip-existing
+```
 
-# 추가할 내용:
+### 10. 스케줄러 연동 (cron)
+
+```bash
+# 매일 오전 9시 롱블랙 오늘의 기사 자동 스크랩
+0 9 * * * cd /path/to/webfetch && node src/index.js "https://longblack.co" --skip-existing --no-cache >> ~/logs/webfetch.log 2>&1
+
+# 배치 URL 일괄 처리
 0 9 * * * cd /path/to/webfetch && node src/index.js batch urls.txt --report /path/to/reports/$(date +\%Y-\%m-\%d).json
-
-# macOS launchd 사용시
-# ~/Library/LaunchAgents/com.webfetch.daily.plist 생성
 ```
 
 ## CLI Options
@@ -146,13 +159,14 @@ crontab -e
 
 | 옵션 | 설명 | 기본값 |
 |------|------|--------|
-| `-f, --format` | 출력 형식 (markdown, pdf, json) | markdown |
+| `-f, --format` | 출력 형식 (markdown, pdf, json) | md + pdf 동시 |
 | `-o, --output` | 출력 파일 경로 | output/YYYY-MM-DD_제목.ext |
 | `-b, --browser` | 브라우저 (chrome, firefox) | chrome |
 | `--headless` | 헤드리스 모드 (로그인 불가) | false |
 | `--keep-open` | 완료 후 브라우저 유지 | false |
 | `--no-cache` | 캐시 무시 (항상 새로 스크랩) | false |
 | `--cache-max-age` | 캐시 유효 시간 (시간) | 24 |
+| `--skip-existing` | 오늘 날짜 파일 존재 시 스킵 | false |
 
 ### 배치 처리 (`batch` 명령어)
 
@@ -165,6 +179,7 @@ crontab -e
 | `--no-cache` | 캐시 무시 | false |
 | `--cache-max-age` | 캐시 유효 시간 (시간) | 24 |
 | `--stop-on-error` | 에러 발생시 중단 | false |
+| `--skip-existing` | 오늘 날짜 파일 존재 시 스킵 | false |
 | `--report` | 배치 리포트 저장 경로 | - |
 
 ### 캐시 관리 (`cache` 명령어)
@@ -176,13 +191,17 @@ crontab -e
 
 ## Features
 
+- **듀얼 출력**: 기본 Markdown + PDF 동시 생성
 - **자동 파일명**: `YYYY-MM-DD_제목.ext` 형식
+- **홈페이지 자동 감지**: `longblack.co` 입력 시 오늘의 기사 자동 탐지 및 스크랩
+- **중복 방지**: `--skip-existing`으로 오늘 날짜 파일 존재 시 스킵
 - **영구 로그인**: 브라우저 프로필에 세션 저장 (Google OAuth 지원)
 - **콘텐츠 필터링**: 본문만 추출 (광고, 네비게이션, 플레이어 UI 제거)
 - **구조화된 출력**: 핵심요약, 타임라인, 아티클 섹션 분리
 - **배치 처리**: URL 목록 파일로 여러 URL 한번에 처리
 - **캐싱 시스템**: URL 해시 기반 캐시로 중복 스크래핑 방지 (24시간 유효)
 - **배치 리포트**: JSON 형식의 실행 결과 리포트 생성
+- **Claude Code 플러그인**: `/webfetch:webfetch-scrape` 등 명령어로 Claude Code에서 직접 사용
 
 ## Project Structure
 
@@ -264,6 +283,10 @@ export function toNewFormat(result) {
 - [x] 배치 처리 지원 (URL 목록 파일 입력)
 - [x] 스케줄러 연동 (cron job 문서화)
 - [x] 캐싱 시스템 (중복 스크래핑 방지)
+- [x] Longblack 홈페이지 → 오늘의 기사 자동 감지
+- [x] `--skip-existing` 중복 스크랩 방지
+- [x] 기본 출력 Markdown + PDF 동시 생성
+- [x] Claude Code 플러그인 (commands + skill)
 
 ### Phase 3: 새로운 어댑터
 - [ ] Vrew 어댑터 (자막 추출)
@@ -280,6 +303,49 @@ export function toNewFormat(result) {
 - [ ] npx 지원 (`npx webfetch <url>`)
 - [ ] 설정 파일 지원 (`webfetch.config.js`)
 - [ ] 인터랙티브 모드 (inquirer)
+
+---
+
+## Claude Code Plugin
+
+Claude Code에서 플러그인으로 사용할 수 있습니다.
+
+### 설치
+
+```bash
+/plugin marketplace add elon-jang/claude-plugins
+/plugin install webfetch@ai-plugins
+```
+
+### 명령어
+
+```
+/webfetch:webfetch-scrape <url>           # URL 스크랩 (YouTube/Longblack)
+/webfetch:webfetch-today                  # 롱블랙 오늘의 기사 자동 스크랩
+/webfetch:webfetch-batch <file>           # URL 파일 일괄 처리
+/webfetch:webfetch-cache [--stats|--clear] # 캐시 관리
+```
+
+### 사용 예시
+
+```bash
+# Longblack 기사 스크랩
+/webfetch:webfetch-scrape https://longblack.co/note/1872
+
+# YouTube 영상 요약
+/webfetch:webfetch-scrape https://youtu.be/VIDEO_ID
+
+# 오늘의 기사 자동 스크랩
+/webfetch:webfetch-today
+
+# 배치 처리
+/webfetch:webfetch-batch urls.txt --report report.json
+
+# 캐시 관리
+/webfetch:webfetch-cache --stats
+```
+
+> 자연어로 "롱블랙 오늘 기사 스크랩" 등을 요청하면 webfetch-assistant 스킬이 자동으로 적절한 명령을 실행합니다.
 
 ---
 
