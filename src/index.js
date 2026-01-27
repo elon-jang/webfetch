@@ -28,7 +28,7 @@ const CLI_DEFAULTS = {
   cacheMaxAge: '24',
   skipExisting: false,
   saveTo: 'local',
-  driveFolder: 'webfetch',
+  driveFolder: '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
   driveOverwrite: false,
 };
 
@@ -102,7 +102,7 @@ program
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .option('--skip-existing', 'skip if today\'s article already scraped', false)
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', 'webfetch')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa')
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (url, options) => {
     try {
@@ -236,7 +236,7 @@ program
   .option('--skip-existing', 'skip URLs if today\'s article exists', false)
   .option('--report <path>', 'save batch report to file')
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', 'webfetch')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa')
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (file, options) => {
     try {
@@ -369,12 +369,19 @@ program
 // Web UI server
 program
   .command('serve')
-  .description('Start web UI server')
+  .description('Start web UI server with optional remote MCP endpoint')
   .option('-p, --port <number>', 'port number', '3000')
   .option('--host <addr>', 'host address', '0.0.0.0')
+  .option('--auth-token <token>', 'bearer token for MCP authentication')
+  .option('--no-mcp', 'disable MCP endpoint')
   .action(async (options) => {
     const { startServer } = await import('./web/server.js');
-    await startServer({ port: parseInt(options.port), host: options.host });
+    await startServer({
+      port: parseInt(options.port),
+      host: options.host,
+      authToken: options.authToken,
+      mcp: options.mcp !== false,
+    });
   });
 
 // MCP server (stdio)

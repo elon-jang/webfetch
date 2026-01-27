@@ -106,7 +106,7 @@ export function registerTools(server) {
       description: 'Upload a previously scraped file to Google Drive',
       inputSchema: {
         filename: z.string().describe('Filename from history to upload'),
-        driveFolder: z.string().optional().describe('Drive folder name (default: webfetch)'),
+        driveFolder: z.string().optional().describe('Drive folder name or ID (default: web_fetch)'),
       },
     },
     async ({ filename, driveFolder }) => {

@@ -115,7 +115,7 @@ export function enqueueScrape(url, options = {}) {
     const outputs = resolveOutputs(options.saveTo || 'local');
     const outputOptions = {
       outputDir: OUTPUT_DIR,
-      driveFolder: options.driveFolder || 'webfetch',
+      driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
       driveOverwrite: options.driveOverwrite || false,
     };
 
@@ -227,7 +227,7 @@ export async function scrape(url, options = {}) {
   const outputs = resolveOutputs(options.saveTo || 'local');
   const outputOptions = {
     outputDir: OUTPUT_DIR,
-    driveFolder: options.driveFolder || 'webfetch',
+    driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
     driveOverwrite: options.driveOverwrite || false,
   };
 
@@ -362,7 +362,7 @@ export async function uploadToGdrive(filename, options = {}) {
   const gdriveHandler = (await import('./outputs/gdrive.js')).default;
 
   const result = await gdriveHandler.save(content, filename, {
-    driveFolder: options.driveFolder || 'webfetch',
+    driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
     driveOverwrite: options.driveOverwrite || false,
   });
 

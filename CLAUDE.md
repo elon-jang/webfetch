@@ -1,7 +1,7 @@
 # webfetch Project Context
 
 ## Overview
-Web scraping CLI + Web UI + MCP Server for LiveWiki & Longblack. Extracts YouTube video summaries via LiveWiki or saves web articles to Markdown/PDF. Supports mobile access via Web UI and AI tool integration via MCP.
+Web scraping CLI + Web UI + MCP Server for LiveWiki, Longblack & TheMiilk. Extracts YouTube video summaries via LiveWiki or saves web articles to Markdown/PDF. Supports mobile access via Web UI and AI tool integration via MCP.
 
 ## Development Commands
 
@@ -51,11 +51,17 @@ node src/index.js gdrive --revoke
 
 ### Web UI Server
 ```bash
-# 웹 UI 서버 시작 (기본 포트 3000, 모든 인터페이스)
+# 웹 UI 서버 시작 (기본 포트 3000, 모든 인터페이스, MCP 엔드포인트 포함)
 node src/index.js serve
 
 # 포트/호스트 지정
 node src/index.js serve -p 8080 --host 127.0.0.1
+
+# Bearer token 인증으로 MCP 엔드포인트 보호
+node src/index.js serve --auth-token my-secret-token
+
+# MCP 엔드포인트 비활성화 (Web UI만)
+node src/index.js serve --no-mcp
 
 # 모바일 접속: http://<서버IP>:3000
 ```
@@ -63,6 +69,22 @@ node src/index.js serve -p 8080 --host 127.0.0.1
 - 3 탭: Scrape / History / Settings
 - SSE로 스크랩 진행률 실시간 표시
 - 서버 모드에서는 headless: true 강제 (첫 로그인은 CLI로 수행)
+- `/mcp` 엔드포인트: Streamable HTTP transport (원격 MCP 클라이언트용)
+- `/health` 엔드포인트: 서버 상태 및 MCP 세션 수 확인
+
+**원격 MCP 클라이언트 설정 (Claude Desktop 등):**
+```json
+{
+  "mcpServers": {
+    "webfetch-remote": {
+      "url": "http://<server-ip>:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer my-secret-token"
+      }
+    }
+  }
+}
+```
 
 ### MCP Server
 ```bash
@@ -132,6 +154,15 @@ curl http://localhost:3000/api/cache
 # MCP 도구 목록 확인
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}\n{"jsonrpc":"2.0","method":"notifications/initialized"}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | node src/index.js mcp
 
+# 원격 MCP 엔드포인트 테스트
+node src/index.js serve --auth-token test123 &
+curl http://localhost:3000/health
+curl -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer test123" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test"}}}'
+
 # 기존 테스트 실행
 npm test
 ```
@@ -178,6 +209,7 @@ log.info('message');  // HH:MM:SS INFO [module-name] message
 - `/src/web/server.js` - HTTP 서버 (built-in http 모듈, SSE 지원)
 - `/src/web/index.html` - 모바일 반응형 프론트엔드 (Single File, inline CSS/JS)
 - `/src/mcp/server.js` - MCP 서버 진입점 (StdioServerTransport)
+- `/src/mcp/http-transport.js` - MCP HTTP 세션 매니저 (StreamableHTTPServerTransport, 원격 MCP용)
 - `/src/mcp/tools.js` - MCP 도구 정의 (zod 스키마 + handler.js 래핑)
 - `/src/adapters/` - Site-specific scrapers (Strategy Pattern)
 - `/src/formatters/` - Output formatters (markdown, pdf, json)
@@ -221,6 +253,12 @@ npx playwright install chromium firefox
 ### LiveWiki
 - YouTube URL 자동 변환: `youtu.be/xxx` → LiveWiki 요약 페이지
 - 아티클/타임라인/요약 탭 자동 추출
+
+### TheMiilk
+- **페이월 감지**: `.article-detail-cta` 존재 시 로그인 유도
+- **로그인 세션 유지**: `auth.themiilk.com` 인증 → `/auth/chrome-profile/`에 세션 저장
+- 콘텐츠 셀렉터: `.article-detail-content` → `.article-body` → `article` fallback
+- 메타데이터 추출: 저자 (`.reporter-profile`), `og:description`
 
 ## Common Tasks
 
@@ -266,6 +304,7 @@ npx playwright install chromium firefox
 - MCP 서버 (`mcp` 커맨드, stdio transport, 5개 도구)
 - 공통 handler.js (CLI/Web/MCP 비즈니스 로직 공유)
 - Logger stderr 출력 (MCP stdio 호환)
+- 원격 MCP 지원 (`serve` 명령 `/mcp` 엔드포인트, Streamable HTTP, Bearer token 인증)
 
 ### Planned (Phase 4+)
 - New adapters: Vrew, Notion, Medium, Substack

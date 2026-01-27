@@ -1,6 +1,7 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { getAdapter } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
@@ -8,6 +9,7 @@ import { hasCache, getCache, setCache } from './utils/cache.js';
 import { createLogger } from './utils/logger.js';
 import { WebfetchError } from './utils/errors.js';
 import { generateFilename } from './utils/filename.js';
+import { resolveOutputs } from './outputs/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -71,10 +73,10 @@ async function processUrl(url, options) {
 }
 
 /**
- * Format and save result
+ * Format and save result through output handlers
  */
 async function saveResult(result, options) {
-  const { format, outputDir } = options;
+  const { format, outputDir, saveTo, driveFolder, driveOverwrite } = options;
   const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
 
   let output;
@@ -86,9 +88,34 @@ async function saveResult(result, options) {
     output = toMarkdown(result);
   }
 
-  const outputPath = join(outputDir, generateFilename(result.title, ext));
-  writeFileSync(outputPath, output);
-  return outputPath;
+  const filename = generateFilename(result.title, ext);
+  const outputs = resolveOutputs(saveTo);
+  const outputOptions = { outputDir, driveFolder, driveOverwrite };
+  const savedResults = [];
+
+  const hasLocal = outputs.some(h => h.name === 'local');
+
+  for (const handler of outputs) {
+    try {
+      const res = await handler.save(output, filename, outputOptions);
+      log.info(`Saved (${handler.name}): ${res.path || res.url}`);
+      savedResults.push({ handler: handler.name, ...res });
+    } catch (error) {
+      if (handler.name !== 'local' && hasLocal) {
+        log.warn(`${handler.name} save failed: ${error.message}`);
+      } else if (handler.name !== 'local') {
+        log.warn(`${handler.name} save failed, falling back to local: ${error.message}`);
+        const localHandler = (await import('./outputs/local.js')).default;
+        const res = await localHandler.save(output, filename, outputOptions);
+        log.info(`Saved (local fallback): ${res.path}`);
+        savedResults.push({ handler: 'local', fallback: true, ...res });
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  return savedResults;
 }
 
 /**
@@ -107,13 +134,11 @@ export async function processBatch(urls, options = {}) {
     outputDir: OUTPUT_DIR,
     concurrency: 1, // Sequential by default (browser limitation)
     stopOnError: false,
+    saveTo: 'local',
+    driveFolder: '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+    driveOverwrite: false,
     ...options,
   };
-
-  // Ensure output directory exists
-  if (!existsSync(opts.outputDir)) {
-    mkdirSync(opts.outputDir, { recursive: true });
-  }
 
   const results = {
     total: urls.length,
@@ -121,6 +146,7 @@ export async function processBatch(urls, options = {}) {
     failed: 0,
     skipped: 0,
     fromCache: 0,
+    outputSummary: {},  // per-handler: { local: { success: N, failed: N }, gdrive: { ... } }
     items: [],
     startTime: new Date().toISOString(),
     endTime: null,
@@ -135,7 +161,7 @@ export async function processBatch(urls, options = {}) {
       url,
       status: 'pending',
       title: null,
-      outputPath: null,
+      outputs: [],
       error: null,
       fromCache: false,
     };
@@ -147,13 +173,26 @@ export async function processBatch(urls, options = {}) {
       itemResult.fromCache = result.fromCache || false;
 
       // Save result
-      const outputPath = await saveResult(result, opts);
-      itemResult.outputPath = outputPath;
+      const saveResults = await saveResult(result, opts);
+      itemResult.outputs = saveResults;
       itemResult.status = 'success';
 
       results.success++;
       if (itemResult.fromCache) {
         results.fromCache++;
+      }
+
+      // Aggregate per-handler stats
+      for (const sr of saveResults) {
+        const name = sr.handler;
+        if (!results.outputSummary[name]) {
+          results.outputSummary[name] = { success: 0, failed: 0 };
+        }
+        results.outputSummary[name].success++;
+        if (sr.fallback) {
+          if (!results.outputSummary[name].fallback) results.outputSummary[name].fallback = 0;
+          results.outputSummary[name].fallback++;
+        }
       }
 
       log.info(`[${i + 1}/${urls.length}] ✓ ${result.title}`);
@@ -193,6 +232,19 @@ function printSummary(results) {
   log.info(`Success:    ${results.success} (${results.fromCache} from cache)`);
   log.info(`Failed:     ${results.failed}`);
   log.info(`Skipped:    ${results.skipped}`);
+
+  // Per-handler output summary
+  const handlers = Object.entries(results.outputSummary);
+  if (handlers.length > 0) {
+    log.info('Outputs:');
+    for (const [name, stats] of handlers) {
+      const parts = [`${stats.success} saved`];
+      if (stats.failed) parts.push(`${stats.failed} failed`);
+      if (stats.fallback) parts.push(`${stats.fallback} fallback`);
+      log.info(`  ${name}: ${parts.join(', ')}`);
+    }
+  }
+
   log.info('='.repeat(50));
 
   if (results.failed > 0) {

@@ -1,7 +1,8 @@
 import { livewiki } from './livewiki.js';
 import { longblack } from './longblack.js';
+import { themiilk } from './themiilk.js';
 
-const adapters = [livewiki, longblack];
+const adapters = [livewiki, longblack, themiilk];
 
 /**
  * Find adapter that matches the URL

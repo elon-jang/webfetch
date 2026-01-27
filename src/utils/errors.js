@@ -62,6 +62,14 @@ export class AdapterError extends WebfetchError {
   }
 }
 
+export class UploadError extends WebfetchError {
+  constructor(message, details = {}) {
+    super(message, 'UPLOAD_ERROR', details);
+    this.name = 'UploadError';
+    this.retryable = true;
+  }
+}
+
 /**
  * Check if error is retryable
  */

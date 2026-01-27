@@ -19,6 +19,7 @@ import {
   uploadToGdrive,
   getSupportedSites,
 } from '../handler.js';
+import { handleMcpRequest, getSessionCount, closeAllSessions } from '../mcp/http-transport.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const log = createLogger('web');
@@ -58,8 +59,19 @@ function json(res, data, status = 200) {
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Mcp-Session-Id');
+  res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 }
+
+function validateBearerToken(req, authToken) {
+  if (!authToken) return true;
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return false;
+  return header.slice(7) === authToken;
+}
+
+// Server-level options (set by startServer)
+let serverOptions = {};
 
 /**
  * Route matching helper.
@@ -221,6 +233,41 @@ async function handleRequest(req, res) {
       return;
     }
 
+    // ─── GET /health ───
+    if (method === 'GET' && url === '/health') {
+      const data = { status: 'ok' };
+      if (serverOptions.mcp !== false) {
+        data.mcpSessions = getSessionCount();
+      }
+      json(res, data);
+      return;
+    }
+
+    // ─── MCP endpoint (POST/GET/DELETE /mcp) ───
+    if (url.split('?')[0] === '/mcp') {
+      if (serverOptions.mcp === false) {
+        json(res, { error: 'MCP endpoint disabled' }, 404);
+        return;
+      }
+
+      if (!validateBearerToken(req, serverOptions.authToken)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+
+      try {
+        const body = (method === 'POST') ? await parseBody(req) : undefined;
+        await handleMcpRequest(req, res, body);
+      } catch (error) {
+        log.error(`MCP error: ${error.message}`);
+        if (!res.headersSent) {
+          json(res, { error: error.message }, 500);
+        }
+      }
+      return;
+    }
+
     // 404
     json(res, { error: 'Not found' }, 404);
 
@@ -234,12 +281,23 @@ export async function startServer(options = {}) {
   const port = options.port || 3000;
   const host = options.host || '0.0.0.0';
 
+  serverOptions = {
+    authToken: options.authToken,
+    mcp: options.mcp,
+  };
+
   const server = createServer(handleRequest);
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
       log.info(`Web UI server running at http://${host}:${port}`);
       log.info(`Local access: http://localhost:${port}`);
+      if (serverOptions.mcp !== false) {
+        log.info(`MCP endpoint: http://${host}:${port}/mcp`);
+        if (serverOptions.authToken) {
+          log.info('MCP authentication: Bearer token enabled');
+        }
+      }
       log.info('Press Ctrl+C to stop');
       resolve(server);
     });
