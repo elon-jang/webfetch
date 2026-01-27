@@ -31,7 +31,7 @@ class Logger {
     const prefix = this.prefix ? `[${this.prefix}] ` : '';
     const levelTag = level.toUpperCase().padEnd(5);
 
-    console.log(
+    console.error(
       `${COLORS.debug}${timestamp}${COLORS.reset} ${color}${levelTag}${COLORS.reset} ${prefix}${args.join(' ')}`
     );
   }
@@ -43,12 +43,12 @@ class Logger {
 
   // Simple progress indicator
   progress(message) {
-    process.stdout.write(`\r→ ${message}`);
+    process.stderr.write(`\r→ ${message}`);
   }
 
   // Clear progress line
   clearProgress() {
-    process.stdout.write('\r\x1b[K');
+    process.stderr.write('\r\x1b[K');
   }
 }
 

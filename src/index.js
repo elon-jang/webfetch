@@ -1,21 +1,36 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
+import { existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getAdapter, listAdapters } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
-import { WebfetchError } from './utils/errors.js';
+import { WebfetchError, UploadError } from './utils/errors.js';
 import { logger, createLogger } from './utils/logger.js';
 const log = createLogger('cli');
 import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
 import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
 import { generateFilename } from './utils/filename.js';
+import { resolveOutputs } from './outputs/index.js';
+import gdriveHandler from './outputs/gdrive.js';
+import { loadConfig, mergeConfig, CONFIG_TEMPLATE } from './utils/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
+
+// CLI option defaults (used for config merge detection)
+const CLI_DEFAULTS = {
+  browser: 'chrome',
+  headless: false,
+  keepOpen: false,
+  cacheMaxAge: '24',
+  skipExisting: false,
+  saveTo: 'local',
+  driveFolder: 'webfetch',
+  driveOverwrite: false,
+};
 
 /**
  * Check if article already exists in output folder (for today)
@@ -36,6 +51,38 @@ function checkExistingArticle(outputDir) {
   return null;
 }
 
+/**
+ * Save content through output handlers
+ * Non-fatal for remote handlers when local is also present
+ */
+async function saveToOutputs(outputs, content, filename, options) {
+  const results = [];
+  const hasLocal = outputs.some(h => h.name === 'local');
+
+  for (const handler of outputs) {
+    try {
+      const res = await handler.save(content, filename, options);
+      log.info(`Saved (${handler.name}): ${res.path || res.url}`);
+      results.push({ handler: handler.name, ...res });
+    } catch (error) {
+      if (handler.name !== 'local' && hasLocal) {
+        // Non-fatal for remote handlers when local is also saving
+        log.warn(`${handler.name} save failed: ${error.message}`);
+      } else if (handler.name !== 'local') {
+        // Remote-only mode: warn and fallback to local
+        log.warn(`${handler.name} save failed, falling back to local: ${error.message}`);
+        const localHandler = (await import('./outputs/local.js')).default;
+        const res = await localHandler.save(content, filename, options);
+        log.info(`Saved (local fallback): ${res.path}`);
+        results.push({ handler: 'local', fallback: true, ...res });
+      } else {
+        throw error;
+      }
+    }
+  }
+  return results;
+}
+
 const program = new Command();
 
 program
@@ -54,8 +101,15 @@ program
   .option('--no-cache', 'skip cache (always fetch fresh)')
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .option('--skip-existing', 'skip if today\'s article already scraped', false)
+  .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', 'webfetch')
+  .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (url, options) => {
     try {
+      // Merge config file with CLI options
+      const config = await loadConfig();
+      options = mergeConfig(options, config, CLI_DEFAULTS);
+
       const adapter = getAdapter(url);
 
       if (!adapter) {
@@ -105,18 +159,19 @@ program
         }
       }
 
-      // Ensure output directory exists
-      if (!existsSync(OUTPUT_DIR)) {
-        mkdirSync(OUTPUT_DIR, { recursive: true });
-      }
+      // Resolve output handlers
+      const outputs = resolveOutputs(options.saveTo);
+      const outputOptions = {
+        outputDir: OUTPUT_DIR,
+        driveFolder: options.driveFolder,
+        driveOverwrite: options.driveOverwrite,
+      };
 
       // Format output - default to both md & pdf if not specified
       const format = options.format?.toLowerCase();
-      const savedFiles = [];
 
       if (options.output) {
         // Custom output path - use specified format or default to markdown
-        const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
         let output;
         if (format === 'json') {
           output = JSON.stringify(result, null, 2);
@@ -125,21 +180,20 @@ program
         } else {
           output = toMarkdown(result);
         }
+        // Custom output path uses local handler directly
+        const { writeFileSync } = await import('fs');
         writeFileSync(options.output, output);
-        savedFiles.push(options.output);
+        log.info(`Saved to: ${options.output}`);
       } else if (!format) {
         // No format specified - output both markdown and PDF
-        const mdPath = join(OUTPUT_DIR, generateFilename(result.title, 'md'));
-        const pdfPath = join(OUTPUT_DIR, generateFilename(result.title, 'pdf'));
+        const mdFilename = generateFilename(result.title, 'md');
+        const pdfFilename = generateFilename(result.title, 'pdf');
 
-        // Save markdown
-        writeFileSync(mdPath, toMarkdown(result));
-        savedFiles.push(mdPath);
+        const mdContent = toMarkdown(result);
+        const pdfContent = await toPdf(result);
 
-        // Save PDF
-        const pdfOutput = await toPdf(result);
-        writeFileSync(pdfPath, pdfOutput);
-        savedFiles.push(pdfPath);
+        await saveToOutputs(outputs, mdContent, mdFilename, outputOptions);
+        await saveToOutputs(outputs, pdfContent, pdfFilename, outputOptions);
       } else {
         // Specific format requested
         const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
@@ -151,13 +205,9 @@ program
         } else {
           output = toMarkdown(result);
         }
-        const outputPath = join(OUTPUT_DIR, generateFilename(result.title, ext));
-        writeFileSync(outputPath, output);
-        savedFiles.push(outputPath);
+        const filename = generateFilename(result.title, ext);
+        await saveToOutputs(outputs, output, filename, outputOptions);
       }
-
-      // Print saved files
-      savedFiles.forEach(f => log.info(`Saved to: ${f}`));
 
     } catch (error) {
       if (error instanceof WebfetchError) {
@@ -185,8 +235,15 @@ program
   .option('--stop-on-error', 'stop processing on first error', false)
   .option('--skip-existing', 'skip URLs if today\'s article exists', false)
   .option('--report <path>', 'save batch report to file')
+  .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', 'webfetch')
+  .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (file, options) => {
     try {
+      // Merge config file with CLI options
+      const config = await loadConfig();
+      options = mergeConfig(options, config, CLI_DEFAULTS);
+
       // Parse URL file
       const urls = parseUrlFile(file);
       log.info(`Batch mode: ${urls.length} URLs from ${file}`);
@@ -205,6 +262,9 @@ program
         cacheMaxAge: parseInt(options.cacheMaxAge) * 60 * 60 * 1000,
         outputDir: options.outputDir,
         stopOnError: options.stopOnError,
+        saveTo: options.saveTo,
+        driveFolder: options.driveFolder,
+        driveOverwrite: options.driveOverwrite,
       });
 
       // Save report if requested
@@ -219,6 +279,37 @@ program
 
     } catch (error) {
       logger.error(error.message);
+      process.exit(1);
+    }
+  });
+
+// Google Drive management command
+program
+  .command('gdrive')
+  .description('Manage Google Drive integration')
+  .option('--setup', 'set up Google Drive OAuth authentication')
+  .option('--test', 'test Google Drive connection')
+  .option('--revoke', 'revoke Google Drive authentication')
+  .action(async (options) => {
+    try {
+      if (options.setup) {
+        await gdriveHandler.setup();
+      } else if (options.test) {
+        await gdriveHandler.test();
+      } else if (options.revoke) {
+        await gdriveHandler.revoke();
+      } else {
+        log.info('Usage:');
+        log.info('  webfetch gdrive --setup    # Set up OAuth authentication');
+        log.info('  webfetch gdrive --test     # Test connection');
+        log.info('  webfetch gdrive --revoke   # Revoke authentication');
+      }
+    } catch (error) {
+      if (error instanceof WebfetchError) {
+        logger.error(`[${error.code}] ${error.message}`);
+      } else {
+        logger.error(error.message);
+      }
       process.exit(1);
     }
   });
@@ -238,6 +329,61 @@ program
     log.info('  webfetch https://longblack.co/note/xxx       # Scrape Longblack');
     log.info('  webfetch <url> -f pdf                        # Save as PDF (auto filename)');
     log.info('  webfetch batch urls.txt                      # Process multiple URLs');
+    log.info('  webfetch <url> --save-to gdrive              # Save to Google Drive');
+  });
+
+// Config management command
+program
+  .command('config')
+  .description('Manage configuration')
+  .option('--init', 'create webfetch.config.js template in current directory')
+  .option('--show', 'show loaded config')
+  .action(async (options) => {
+    if (options.init) {
+      const configPath = join(process.cwd(), 'webfetch.config.js');
+      if (existsSync(configPath)) {
+        log.warn(`Config already exists: ${configPath}`);
+        return;
+      }
+      const { writeFileSync } = await import('fs');
+      writeFileSync(configPath, CONFIG_TEMPLATE);
+      log.info(`Config created: ${configPath}`);
+    } else if (options.show) {
+      const config = await loadConfig();
+      if (Object.keys(config).length === 0) {
+        log.info('No config file found');
+        log.info('Run: webfetch config --init');
+      } else {
+        log.info('Loaded config:');
+        for (const [key, value] of Object.entries(config)) {
+          log.info(`  ${key}: ${JSON.stringify(value)}`);
+        }
+      }
+    } else {
+      log.info('Usage:');
+      log.info('  webfetch config --init   # Create config template');
+      log.info('  webfetch config --show   # Show loaded config');
+    }
+  });
+
+// Web UI server
+program
+  .command('serve')
+  .description('Start web UI server')
+  .option('-p, --port <number>', 'port number', '3000')
+  .option('--host <addr>', 'host address', '0.0.0.0')
+  .action(async (options) => {
+    const { startServer } = await import('./web/server.js');
+    await startServer({ port: parseInt(options.port), host: options.host });
+  });
+
+// MCP server (stdio)
+program
+  .command('mcp')
+  .description('Start MCP server (stdio transport)')
+  .action(async () => {
+    const { startMcpServer } = await import('./mcp/server.js');
+    await startMcpServer();
   });
 
 // Cache management command

@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>webfetch</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #333;
+      --text: #e8e8e8;
+      --text2: #999;
+      --accent: #4a9eff;
+      --accent2: #2d7cd6;
+      --success: #34c759;
+      --error: #ff453a;
+      --warn: #ffd60a;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Header ─── */
+    header {
+      padding: 16px 20px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    header .version {
+      font-size: 11px;
+      color: var(--text2);
+      background: var(--surface2);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* ─── Tabs ─── */
+    .tabs {
+      display: flex;
+      padding: 12px 20px 0;
+      gap: 4px;
+    }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text2);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ─── Main ─── */
+    main {
+      flex: 1;
+      padding: 16px 20px 100px;
+      overflow-y: auto;
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ─── Scrape Panel ─── */
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .input-group input {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-group input:focus {
+      border-color: var(--accent);
+    }
+    .input-group input::placeholder { color: var(--text2); }
+
+    .format-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .format-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text2);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .format-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ─── Progress ─── */
+    .progress-area {
+      display: none;
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--surface);
+      border-radius: var(--radius);
+    }
+    .progress-area.show { display: block; }
+
+    .progress-steps {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .step-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+    .step-dot.active { background: var(--accent); }
+    .step-dot.done { background: var(--success); }
+    .progress-text {
+      font-size: 14px;
+      color: var(--text2);
+    }
+
+    /* ─── Result ─── */
+    .result-area {
+      display: none;
+      margin-top: 20px;
+    }
+    .result-area.show { display: block; }
+
+    .result-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .result-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .result-preview {
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.6;
+      margin-bottom: 12px;
+      max-height: 100px;
+      overflow: hidden;
+    }
+    .result-files {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .file-btn {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: border-color 0.2s;
+    }
+    .file-btn:hover { border-color: var(--accent); }
+    .file-btn .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .badge-md { background: #1a3a2a; color: var(--success); }
+    .badge-pdf { background: #3a1a1a; color: var(--error); }
+
+    .gdrive-btn {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .gdrive-btn:hover { border-color: var(--warn); }
+
+    /* ─── Error ─── */
+    .error-msg {
+      display: none;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #2a1515;
+      border: 1px solid var(--error);
+      border-radius: var(--radius);
+      color: var(--error);
+      font-size: 14px;
+    }
+    .error-msg.show { display: block; }
+
+    /* ─── History Panel ─── */
+    .history-list { list-style: none; }
+    .history-date {
+      font-size: 13px;
+      color: var(--text2);
+      padding: 12px 0 6px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 4px;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--surface2);
+      gap: 8px;
+    }
+    .history-name {
+      flex: 1;
+      font-size: 14px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-size {
+      font-size: 12px;
+      color: var(--text2);
+      white-space: nowrap;
+    }
+    .history-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .history-empty {
+      text-align: center;
+      color: var(--text2);
+      padding: 40px 0;
+      font-size: 14px;
+    }
+
+    /* ─── Settings Panel ─── */
+    .settings-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .settings-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    .settings-label { color: var(--text2); }
+    .settings-value { font-weight: 500; }
+
+    .btn-danger {
+      padding: 10px 20px;
+      font-size: 14px;
+      background: transparent;
+      color: var(--error);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    .btn-danger:hover { background: #2a1515; }
+
+    .site-list {
+      list-style: none;
+    }
+    .site-list li {
+      padding: 6px 0;
+      font-size: 14px;
+      color: var(--text2);
+    }
+    .site-list li strong { color: var(--text); }
+
+    /* ─── Responsive ─── */
+    @media (min-width: 640px) {
+      body { max-width: 600px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>webfetch</h1>
+    <span class="version">v1.0</span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="scrape">Scrape</button>
+    <button class="tab" data-tab="history">History</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </div>
+
+  <main>
+    <!-- ═══ Scrape ═══ -->
+    <div id="scrape" class="panel active">
+      <div class="input-group">
+        <input type="url" id="urlInput" placeholder="Enter URL to scrape..." autocomplete="off" autocapitalize="off" />
+      </div>
+
+      <div class="format-row">
+        <button class="format-btn active" data-format="both">MD + PDF</button>
+        <button class="format-btn" data-format="md">MD</button>
+        <button class="format-btn" data-format="pdf">PDF</button>
+      </div>
+
+      <button class="btn-primary" id="scrapeBtn">Scrape</button>
+
+      <div class="error-msg" id="errorMsg"></div>
+
+      <div class="progress-area" id="progressArea">
+        <div class="progress-steps">
+          <div class="step-dot" data-step="0"></div>
+          <div class="step-dot" data-step="1"></div>
+          <div class="step-dot" data-step="2"></div>
+          <div class="step-dot" data-step="3"></div>
+        </div>
+        <div class="progress-text" id="progressText">Preparing...</div>
+      </div>
+
+      <div class="result-area" id="resultArea">
+        <div class="result-card">
+          <div class="result-title" id="resultTitle"></div>
+          <div class="result-preview" id="resultPreview"></div>
+          <div class="result-files" id="resultFiles"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ History ═══ -->
+    <div id="history" class="panel">
+      <div id="historyContent"></div>
+    </div>
+
+    <!-- ═══ Settings ═══ -->
+    <div id="settings" class="panel">
+      <div class="settings-section">
+        <div class="settings-title">Cache</div>
+        <div class="settings-row">
+          <span class="settings-label">Entries</span>
+          <span class="settings-value" id="cacheCount">-</span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">Size</span>
+          <span class="settings-value" id="cacheSize">-</span>
+        </div>
+        <button class="btn-danger" id="clearCacheBtn">Clear Cache</button>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">Supported Sites</div>
+        <ul class="site-list" id="siteList"></ul>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API = '';  // Same origin
+
+    // ─── Tabs ───
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+
+        if (tab.dataset.tab === 'history') loadHistory();
+        if (tab.dataset.tab === 'settings') loadSettings();
+      });
+    });
+
+    // ─── Format Toggle ───
+    let selectedFormat = 'both';
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedFormat = btn.dataset.format;
+      });
+    });
+
+    // ─── Scrape ───
+    const urlInput = document.getElementById('urlInput');
+    const scrapeBtn = document.getElementById('scrapeBtn');
+    const progressArea = document.getElementById('progressArea');
+    const progressText = document.getElementById('progressText');
+    const resultArea = document.getElementById('resultArea');
+    const errorMsg = document.getElementById('errorMsg');
+    const dots = document.querySelectorAll('.step-dot');
+
+    const PHASE_MAP = { queued: 0, launching: 0, starting: 0, cache: 1, scraping: 1, formatting: 2, saving: 3 };
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('show');
+    }
+    function hideError() { errorMsg.classList.remove('show'); }
+
+    function setProgress(phase, message) {
+      const step = PHASE_MAP[phase] ?? 0;
+      dots.forEach((d, i) => {
+        d.classList.toggle('active', i === step);
+        d.classList.toggle('done', i < step);
+      });
+      progressText.textContent = message;
+    }
+
+    function showResult(data) {
+      document.getElementById('resultTitle').textContent = data.title || 'Untitled';
+      document.getElementById('resultPreview').textContent = data.preview || '';
+
+      const filesDiv = document.getElementById('resultFiles');
+      filesDiv.innerHTML = '';
+
+      (data.files || []).forEach(f => {
+        const a = document.createElement('a');
+        a.className = 'file-btn';
+        a.href = `${API}/api/download/${encodeURIComponent(f.name)}`;
+        a.download = f.name;
+        a.innerHTML = `<span class="badge badge-${f.format}">${f.format}</span> ${f.name}`;
+        filesDiv.appendChild(a);
+
+        // GDrive button
+        const gBtn = document.createElement('button');
+        gBtn.className = 'gdrive-btn';
+        gBtn.textContent = 'Drive';
+        gBtn.onclick = () => uploadToDrive(f.name, gBtn);
+        filesDiv.appendChild(gBtn);
+      });
+
+      resultArea.classList.add('show');
+    }
+
+    async function doScrape() {
+      const url = urlInput.value.trim();
+      if (!url) { showError('Please enter a URL'); return; }
+
+      hideError();
+      progressArea.classList.add('show');
+      resultArea.classList.remove('show');
+      scrapeBtn.disabled = true;
+      setProgress('launching', 'Starting...');
+
+      try {
+        const res = await fetch(`${API}/api/scrape`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, format: selectedFormat }),
+        });
+        const { jobId, error } = await res.json();
+        if (error) { showError(error); scrapeBtn.disabled = false; return; }
+
+        // SSE
+        const es = new EventSource(`${API}/api/scrape/${jobId}`);
+
+        es.addEventListener('status', (e) => {
+          const d = JSON.parse(e.data);
+          setProgress(d.phase, d.message);
+        });
+
+        es.addEventListener('result', (e) => {
+          const d = JSON.parse(e.data);
+          dots.forEach(dot => dot.classList.add('done'));
+          dots.forEach(dot => dot.classList.remove('active'));
+          progressText.textContent = 'Done!';
+          showResult(d);
+          scrapeBtn.disabled = false;
+          es.close();
+        });
+
+        es.addEventListener('error', (e) => {
+          try {
+            const d = JSON.parse(e.data);
+            showError(d.message || 'Scrape failed');
+          } catch {
+            showError('Connection lost');
+          }
+          progressArea.classList.remove('show');
+          scrapeBtn.disabled = false;
+          es.close();
+        });
+
+        // EventSource native error (connection drop)
+        es.onerror = () => {
+          // Don't double-handle if we already got a named error event
+          if (es.readyState === EventSource.CLOSED) return;
+          es.close();
+        };
+
+      } catch (err) {
+        showError(err.message);
+        scrapeBtn.disabled = false;
+        progressArea.classList.remove('show');
+      }
+    }
+
+    scrapeBtn.addEventListener('click', doScrape);
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doScrape();
+    });
+
+    // ─── Upload to Drive ───
+    async function uploadToDrive(filename, btn) {
+      const orig = btn.textContent;
+      btn.textContent = '...';
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API}/api/gdrive/${encodeURIComponent(filename)}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.error) {
+          btn.textContent = 'Error';
+          setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+        } else {
+          btn.textContent = 'Done';
+          btn.style.borderColor = 'var(--success)';
+          btn.style.color = 'var(--success)';
+        }
+      } catch {
+        btn.textContent = 'Error';
+        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+      }
+    }
+
+    // ─── History ───
+    async function loadHistory() {
+      const container = document.getElementById('historyContent');
+      try {
+        const res = await fetch(`${API}/api/history`);
+        const { files } = await res.json();
+
+        if (!files || files.length === 0) {
+          container.innerHTML = '<div class="history-empty">No files yet. Start scraping!</div>';
+          return;
+        }
+
+        // Group by date
+        const groups = {};
+        files.forEach(f => {
+          const date = f.modifiedAt.slice(0, 10);
+          if (!groups[date]) groups[date] = [];
+          groups[date].push(f);
+        });
+
+        let html = '';
+        for (const [date, items] of Object.entries(groups)) {
+          html += `<div class="history-date">${date}</div>`;
+          items.forEach(f => {
+            const sizeKB = (f.size / 1024).toFixed(1);
+            const sizeStr = f.size > 1024 * 1024
+              ? `${(f.size / 1024 / 1024).toFixed(1)} MB`
+              : `${sizeKB} KB`;
+            html += `
+              <div class="history-item">
+                <span class="history-name">${f.name}</span>
+                <span class="badge badge-${f.format}" style="font-size:10px;padding:1px 6px;border-radius:4px;text-transform:uppercase;font-weight:600">${f.format}</span>
+                <span class="history-size">${sizeStr}</span>
+                <div class="history-actions">
+                  <a class="file-btn" href="${API}/api/download/${encodeURIComponent(f.name)}" download="${f.name}" style="padding:6px 10px;font-size:12px">DL</a>
+                </div>
+              </div>`;
+          });
+        }
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div class="history-empty">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    // ─── Settings ───
+    async function loadSettings() {
+      try {
+        const res = await fetch(`${API}/api/cache`);
+        const data = await res.json();
+        document.getElementById('cacheCount').textContent = data.count ?? 0;
+        const sizeKB = ((data.size ?? 0) / 1024).toFixed(1);
+        document.getElementById('cacheSize').textContent = `${sizeKB} KB`;
+      } catch { /* ignore */ }
+
+      try {
+        const res = await fetch(`${API}/api/sites`);
+        const { sites } = await res.json();
+        const list = document.getElementById('siteList');
+        list.innerHTML = (sites || []).map(s =>
+          `<li><strong>${s.name}</strong></li>`
+        ).join('');
+      } catch { /* ignore */ }
+    }
+
+    document.getElementById('clearCacheBtn').addEventListener('click', async () => {
+      if (!confirm('Clear all cache?')) return;
+      await fetch(`${API}/api/cache`, { method: 'DELETE' });
+      loadSettings();
+    });
+
+    // Load settings on startup
+    loadSettings();
+  </script>
+</body>
+</html>
