@@ -68,6 +68,38 @@ describe('getAdapter', () => {
     });
   });
 
+  describe('TheMiilk URLs', () => {
+    it('matches themiilk article URL', () => {
+      const adapter = getAdapter('https://themiilk.com/articles/aa794cf5f');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('themiilk');
+    });
+
+    it('matches themiilk homepage', () => {
+      const adapter = getAdapter('https://themiilk.com');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('themiilk');
+    });
+
+    it('matches themiilk with www', () => {
+      const adapter = getAdapter('https://www.themiilk.com/articles/abc123');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('themiilk');
+    });
+
+    it('matches themiilk with trailing slash', () => {
+      const adapter = getAdapter('https://themiilk.com/');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('themiilk');
+    });
+
+    it('matches themiilk http URL', () => {
+      const adapter = getAdapter('http://themiilk.com/articles/xyz');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('themiilk');
+    });
+  });
+
   describe('unsupported URLs', () => {
     it('returns undefined for unsupported URL', () => {
       expect(getAdapter('https://example.com')).toBeUndefined();
@@ -87,7 +119,7 @@ describe('listAdapters', () => {
   it('returns array of adapters', () => {
     const adapters = listAdapters();
     expect(Array.isArray(adapters)).toBe(true);
-    expect(adapters.length).toBeGreaterThanOrEqual(2);
+    expect(adapters.length).toBeGreaterThanOrEqual(3);
   });
 
   it('each adapter has name and match function', () => {

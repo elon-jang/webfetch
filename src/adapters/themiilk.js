@@ -4,6 +4,7 @@ import { withRetry } from '../utils/retry.js';
 import { AuthError, ContentError } from '../utils/errors.js';
 
 const THEMIILK_REGEX = /^https?:\/\/(www\.)?themiilk\.com/;
+const HOMEPAGE_REGEX = /^https?:\/\/(www\.)?themiilk\.com\/?$/;
 const log = createLogger('themiilk');
 
 const CONFIG = {
@@ -51,8 +52,17 @@ export const themiilk = {
     try {
       return await withRetry(
         async () => {
-          log.info(`Scraping: ${url}`);
-          await page.goto(url, { waitUntil: 'domcontentloaded' });
+          const isHomepage = HOMEPAGE_REGEX.test(url);
+          let targetUrl = url;
+
+          if (isHomepage) {
+            log.info('Homepage detected. Finding latest article...');
+            targetUrl = await getLatestArticleUrl(page);
+            log.info(`Latest article: ${targetUrl}`);
+          }
+
+          log.info(`Scraping: ${targetUrl}`);
+          await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
           await page.waitForTimeout(3000);
 
           const needsLogin = await checkPaywall(page);
@@ -61,7 +71,7 @@ export const themiilk = {
             log.info('Login required. Please login in the browser...');
             await performLogin(page);
             log.info('Login successful!');
-            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
             await page.waitForTimeout(2000);
 
             // Check paywall again after login
@@ -71,7 +81,7 @@ export const themiilk = {
             }
           }
 
-          return await extractContent(page, url);
+          return await extractContent(page, targetUrl);
         },
         {
           maxRetries: options.maxRetries ?? 3,
@@ -85,6 +95,45 @@ export const themiilk = {
     }
   },
 };
+
+async function getLatestArticleUrl(page) {
+  await page.goto('https://themiilk.com', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3000);
+
+  const articleUrl = await page.evaluate(() => {
+    // Strategy 1: First news-item with article link
+    const newsItems = document.querySelectorAll('.news-item');
+    for (const item of newsItems) {
+      const link = item.querySelector('a[href*="/articles/"]');
+      if (link) return link.href;
+    }
+
+    // Strategy 2: lastest-brief section
+    const brief = document.querySelector('.lastest-brief');
+    if (brief) {
+      const link = brief.querySelector('a[href*="/articles/"]');
+      if (link) return link.href;
+    }
+
+    // Strategy 3: Any article link not in notification-list
+    const allLinks = Array.from(document.querySelectorAll('a[href*="/articles/"]'));
+    const mainLink = allLinks.find(a => !a.closest('.notification-list'));
+    if (mainLink) return mainLink.href;
+
+    return null;
+  });
+
+  if (!articleUrl) {
+    throw new ContentError('Could not find latest article on homepage', {
+      url: 'https://themiilk.com',
+      hint: 'Homepage structure may have changed',
+    });
+  }
+
+  // Clean query params (tracking params)
+  const clean = new URL(articleUrl);
+  return `${clean.origin}${clean.pathname}`;
+}
 
 async function checkPaywall(page) {
   // Redirected to auth page

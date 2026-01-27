@@ -255,8 +255,11 @@ npx playwright install chromium firefox
 - 아티클/타임라인/요약 탭 자동 추출
 
 ### TheMiilk
+- **홈페이지 자동 감지**: `https://themiilk.com` 입력 시 최신 기사 자동 스크랩
+- **Lazy loading 대응**: `scrollToBottom()`으로 전체 기사 로드 후 추출
 - **페이월 감지**: `.article-detail-cta` 존재 시 로그인 유도
 - **로그인 세션 유지**: `auth.themiilk.com` 인증 → `/auth/chrome-profile/`에 세션 저장
+- 셀렉터 전략: `.news-item` → `.lastest-brief` → `a[href*="/articles/"]` fallback (홈페이지)
 - 콘텐츠 셀렉터: `.article-detail-content` → `.article-body` → `article` fallback
 - 메타데이터 추출: 저자 (`.reporter-profile`), `og:description`
 
