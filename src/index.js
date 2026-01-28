@@ -14,7 +14,7 @@ import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './ut
 import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
-import gdriveHandler from './outputs/gdrive.js';
+import gdriveHandler, { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 import { loadConfig, mergeConfig, CONFIG_TEMPLATE } from './utils/config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +28,7 @@ const CLI_DEFAULTS = {
   cacheMaxAge: '24',
   skipExisting: false,
   saveTo: 'local',
-  driveFolder: '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+  driveFolder: DEFAULT_DRIVE_FOLDER_ID,
   driveOverwrite: false,
 };
 
@@ -102,7 +102,7 @@ program
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .option('--skip-existing', 'skip if today\'s article already scraped', false)
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (url, options) => {
     try {
@@ -236,7 +236,7 @@ program
   .option('--skip-existing', 'skip URLs if today\'s article exists', false)
   .option('--report <path>', 'save batch report to file')
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa')
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (file, options) => {
     try {

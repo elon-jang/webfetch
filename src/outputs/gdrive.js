@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -11,6 +11,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const AUTH_DIR = join(__dirname, '..', '..', 'auth');
 const CREDENTIALS_PATH = join(AUTH_DIR, 'gdrive-credentials.json');
 const TOKEN_PATH = join(AUTH_DIR, 'gdrive-token.json');
+
+/** Default Google Drive folder ID (shared across CLI, handler, batch) */
+export const DEFAULT_DRIVE_FOLDER_ID = '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa';
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
@@ -135,7 +138,7 @@ export default {
   async save(content, filename, options = {}) {
     const { google, oauth2Client } = await getAuthClient();
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    const folderName = options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa';
+    const folderName = options.driveFolder || DEFAULT_DRIVE_FOLDER_ID;
     const overwrite = options.driveOverwrite || false;
 
     const folderId = await findOrCreateFolder(drive, folderName);
@@ -183,6 +186,17 @@ export default {
       const file = await withRetry(uploadFn, { maxRetries: 3 });
       return { url: file.webViewLink, id: file.id, name: file.name };
     } catch (error) {
+      const msg = error.message || '';
+      if (msg.includes('invalid_grant') || msg.includes('Token has been expired or revoked')) {
+        log.warn('Google Drive token expired or revoked, removing token file');
+        if (existsSync(TOKEN_PATH)) {
+          unlinkSync(TOKEN_PATH);
+        }
+        throw new AuthError(
+          'Google Drive token expired. Run: webfetch gdrive --setup',
+          { filename, folder: folderName }
+        );
+      }
       throw new UploadError(`Drive upload failed: ${error.message}`, {
         filename,
         folder: folderName,
@@ -285,7 +299,6 @@ export default {
     }
 
     if (existsSync(TOKEN_PATH)) {
-      const { unlinkSync } = await import('fs');
       unlinkSync(TOKEN_PATH);
     }
 

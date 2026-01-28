@@ -10,6 +10,7 @@ import { createLogger } from './utils/logger.js';
 import { WebfetchError } from './utils/errors.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
+import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -135,7 +136,7 @@ export async function processBatch(urls, options = {}) {
     concurrency: 1, // Sequential by default (browser limitation)
     stopOnError: false,
     saveTo: 'local',
-    driveFolder: '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+    driveFolder: DEFAULT_DRIVE_FOLDER_ID,
     driveOverwrite: false,
     ...options,
   };

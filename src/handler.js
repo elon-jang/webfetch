@@ -13,6 +13,7 @@ import { toPdf } from './formatters/pdf.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
 import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
+import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 import { createLogger } from './utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -115,7 +116,7 @@ export function enqueueScrape(url, options = {}) {
     const outputs = resolveOutputs(options.saveTo || 'local');
     const outputOptions = {
       outputDir: OUTPUT_DIR,
-      driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+      driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
       driveOverwrite: options.driveOverwrite || false,
     };
 
@@ -227,7 +228,7 @@ export async function scrape(url, options = {}) {
   const outputs = resolveOutputs(options.saveTo || 'local');
   const outputOptions = {
     outputDir: OUTPUT_DIR,
-    driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
     driveOverwrite: options.driveOverwrite || false,
   };
 
@@ -362,7 +363,7 @@ export async function uploadToGdrive(filename, options = {}) {
   const gdriveHandler = (await import('./outputs/gdrive.js')).default;
 
   const result = await gdriveHandler.save(content, filename, {
-    driveFolder: options.driveFolder || '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',
+    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
     driveOverwrite: options.driveOverwrite || false,
   });
 
