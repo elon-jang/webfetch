@@ -238,6 +238,16 @@ npx playwright install chromium firefox
 4. `/auth/gdrive-token.json` 자동 생성 (refresh token으로 자동 갱신)
 5. Scope: `drive.file` (앱이 생성한 파일만 접근)
 
+**Default Folder:**
+- Default folder ID: `DEFAULT_DRIVE_FOLDER_ID` (exported from `/src/outputs/gdrive.js`)
+- `--drive-folder` 미지정 시 이 폴더에 저장
+- 변경: `/src/outputs/gdrive.js`의 상수 수정 또는 `--drive-folder` 옵션 사용
+
+**Token Auto-Recovery:**
+- OAuth refresh token 만료/취소 시 자동 감지 (`invalid_grant`, `Token has been expired or revoked`)
+- 만료된 토큰 파일 자동 삭제 → `AuthError` throw
+- 복구: `node src/index.js gdrive --setup` 재실행
+
 ### Cache System
 - Located in `/.cache/` (gitignored)
 - URL-hash based, 24hr default TTL

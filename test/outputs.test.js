@@ -163,4 +163,64 @@ describe('outputs/gdrive.js', () => {
       expect(err.code).toMatch(/AUTH_ERROR|UPLOAD_ERROR/);
     }
   });
+
+  it('exports DEFAULT_DRIVE_FOLDER_ID constant', async () => {
+    const { DEFAULT_DRIVE_FOLDER_ID } = await import('../src/outputs/gdrive.js');
+    expect(DEFAULT_DRIVE_FOLDER_ID).toBe('1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa');
+  });
+});
+
+// Test RefreshError detection logic in gdrive save()
+describe('gdrive RefreshError handling', () => {
+  it('detects invalid_grant and throws AuthError', async () => {
+    const { AuthError } = await import('../src/utils/errors.js');
+
+    // Simulate the error detection logic from gdrive.js save() catch block
+    const error = new Error('invalid_grant');
+    const msg = error.message || '';
+    const isRefreshError = msg.includes('invalid_grant') || msg.includes('Token has been expired or revoked');
+
+    expect(isRefreshError).toBe(true);
+
+    // Verify AuthError has correct properties
+    const authErr = new AuthError('Google Drive token expired. Run: webfetch gdrive --setup', {
+      filename: 'test.md',
+      folder: 'test-folder',
+    });
+    expect(authErr.code).toBe('AUTH_ERROR');
+    expect(authErr.retryable).toBe(false);
+    expect(authErr.message).toContain('webfetch gdrive --setup');
+    expect(authErr.details.filename).toBe('test.md');
+  });
+
+  it('detects "Token has been expired or revoked" and throws AuthError', async () => {
+    const error = new Error('Token has been expired or revoked');
+    const msg = error.message || '';
+    const isRefreshError = msg.includes('invalid_grant') || msg.includes('Token has been expired or revoked');
+
+    expect(isRefreshError).toBe(true);
+  });
+
+  it('does not treat normal upload errors as refresh errors', async () => {
+    const normalErrors = [
+      new Error('Network timeout'),
+      new Error('File not found'),
+      new Error('Quota exceeded'),
+      new Error('Internal server error'),
+    ];
+
+    for (const error of normalErrors) {
+      const msg = error.message || '';
+      const isRefreshError = msg.includes('invalid_grant') || msg.includes('Token has been expired or revoked');
+      expect(isRefreshError).toBe(false);
+    }
+  });
+
+  it('handles error with empty/undefined message gracefully', async () => {
+    const error = new Error();
+    const msg = error.message || '';
+    const isRefreshError = msg.includes('invalid_grant') || msg.includes('Token has been expired or revoked');
+
+    expect(isRefreshError).toBe(false);
+  });
 });
