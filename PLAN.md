@@ -1,9 +1,11 @@
 # Webfetch Improvement Plan
 
-## Status: Phase 1–5 Complete, Phase 6 Planned
+## Status: Phase 1–5 Complete, Phase 5.5 Complete, Phase 6–7 Planned
 
 Phase 1–5: new adapters, plugin commands, output/format, infrastructure/stability — 모두 완료.
+Phase 5.5: publish date 파일명, Drive 폴더 수정, 벌크 스크립트 — 완료.
 Phase 6: 플러그인 범용화 (MCP 활용) — 계획 단계.
+Phase 7: 코드 품질 및 기능 개선 — 계획 단계.
 
 ## Phase 1: Foundation (Generic Adapter + Error Hints + Rate Limiting)
 
@@ -62,6 +64,21 @@ Phase 1 (Foundation) -> Phase 3 (Outputs) -> Phase 2 (Adapters) -> Phase 5 (Infr
 [livewiki, longblack, themiilk, medium, substack, naver, generic]
 ```
 
+## Phase 5.5: Publish Date & Drive Migration (Complete)
+
+파일명을 글 작성일 우선으로 변경하고, Drive 폴더 구조를 수정.
+
+- [x] 5.5.1 `normalizeDate()` + `publishDate` 우선 로직 (`src/utils/filename.js`)
+- [x] 5.5.2 모든 어댑터에 `article:published_time` 메타 태그 추출 추가
+- [x] 5.5.3 호출부 (`index.js`, `handler.js`, `batch.js`)에 `publishDate` 전달
+- [x] 5.5.4 Markdown frontmatter에 `date:` 필드 추가
+- [x] 5.5.5 `DEFAULT_DRIVE_FOLDER_ID` → `DEFAULT_DRIVE_FOLDER = 'Webfetch'` (이름 기반)
+- [x] 5.5.6 `gdrive.test()`가 `DEFAULT_DRIVE_FOLDER` 상수 사용하도록 수정
+- [x] 5.5.7 벌크 스크립트: migrate-dates, upload-to-gdrive, verify-gdrive, cleanup-gdrive, dedupe-gdrive
+- [x] 5.5.8 기존 output 파일 일괄 마이그레이션 (12개 파일명 변경, 17개 frontmatter 업데이트)
+- [x] 5.5.9 Drive 업로드 33개 파일, 중복 7개 정리
+- [x] 5.5.10 filename.test.js에 normalizeDate + publishDate 테스트 32개
+
 ## Phase 6: Plugin Portability (MCP + setup.sh)
 
 현재 플러그인은 `~/elon/ai/projects/webfetch` 경로를 9개 파일 19곳에 하드코딩.
@@ -109,3 +126,36 @@ plugins/webfetch/
 | `${HOME}` 변수가 `.mcp.json`에서 미지원 | setup.sh에서 `.mcp.json` 동적 생성 |
 | CLI 업데이트 시 사용자 수동 pull 필요 | setup.sh에 `--update` 옵션 추가 |
 | CLI `__dirname` 기반 경로 (output, auth, cache) | `src/utils/paths.js` 추상화 필요 (npm 게시 시) |
+
+## Phase 7: Code Quality & Feature Improvements
+
+### 7.1 normalizeDate() 개선
+- [ ] `Date.parse()` fallback을 영문 월명 수동 파싱으로 교체
+- [ ] 타임존 의존성 완전 제거
+- [ ] 테스트에서 ±1일 허용 대신 정확한 매칭으로 변경
+
+### 7.2 MCP 배치 도구
+- [ ] `webfetch_batch` MCP 도구 추가 (`src/mcp/tools.js`)
+- [ ] URL 배열 또는 파일 경로 입력 지원
+- [ ] 배치 리포트 JSON 반환
+- [ ] MCP 도구 수 6 → 7개로 문서 업데이트
+
+### 7.3 날짜 추출 유틸리티 함수
+- [ ] `extractPublishDate(document)` 헬퍼 함수 추출 (어댑터 코드 DRY)
+- [ ] 현재 6개 어댑터에 동일 패턴 반복 → 공통 유틸로 통합
+
+### 7.4 Drive 건강 검사 강화
+- [ ] `verify-gdrive.js`에 구조 무결성 검사 추가
+- [ ] 고아 파일, 잘못된 폴더, 중복 감지
+- [ ] 주간 스케줄링 가능하도록 JSON 리포트 출력
+
+### 7.5 마이그레이션 폴백 전략
+- [ ] publish date 없는 파일 → `scraped_at` frontmatter 활용
+- [ ] YouTube 영상 → YouTube API로 게시일 조회 (마지막 수단)
+- [ ] 수동 지정 JSON config 지원
+- [ ] 마이그레이션 미완료 파일 0건 달성
+
+### 7.6 배치 업로드 동시성
+- [ ] `upload-to-gdrive.js`에 `--concurrency N` 옵션 추가
+- [ ] `Promise.allSettled` + 슬라이딩 윈도우 (기본 3)
+- [ ] Drive API 쿼터 준수 확인
