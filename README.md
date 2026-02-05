@@ -1,7 +1,7 @@
 # webfetch
 
-Web scraping CLI + Web UI + MCP Server for LiveWiki & Longblack.
-YouTube 영상을 LiveWiki로 요약하거나, 콘텐츠를 Markdown/PDF로 저장합니다.
+Web scraping CLI + Web UI + MCP Server for YouTube/LiveWiki, Longblack, TheMiilk, Medium, Substack, Naver Blog, and any URL.
+웹 콘텐츠를 스크랩하여 Markdown/PDF/EPUB으로 저장합니다.
 
 - **CLI** — 터미널에서 직접 스크랩
 - **Web UI** — 모바일 브라우저에서 `http://<서버IP>:3000` 접속
@@ -382,7 +382,12 @@ webfetch/
 │   ├── adapters/          # 사이트별 어댑터 (Strategy Pattern)
 │   │   ├── index.js       # 어댑터 레지스트리
 │   │   ├── livewiki.js    # LiveWiki (YouTube 추출 + 콘텐츠 스크랩)
-│   │   └── longblack.js   # Longblack (기사 스크랩)
+│   │   ├── longblack.js   # Longblack (기사 스크랩)
+│   │   ├── themiilk.js    # TheMiilk (기사 스크랩)
+│   │   ├── medium.js      # Medium (아티클 스크랩)
+│   │   ├── substack.js    # Substack (뉴스레터 스크랩)
+│   │   ├── naver.js       # Naver Blog (블로그 스크랩)
+│   │   └── generic.js     # 범용 URL (Readability 기반 catch-all)
 │   ├── formatters/        # 출력 포맷터
 │   │   ├── markdown.js    # Turndown 기반 변환
 │   │   └── pdf.js         # Styled PDF 생성
@@ -433,9 +438,9 @@ export const newsite = {
   }
 };
 
-// src/adapters/index.js에 등록
+// src/adapters/index.js에 등록 (순서 중요: 구체적 → generic)
 import { newsite } from './newsite.js';
-const adapters = [livewiki, longblack, newsite];
+const adapters = [livewiki, longblack, themiilk, medium, substack, naver, newsite, generic];
 ```
 
 ### Formatter Pattern (유연성)
@@ -513,16 +518,26 @@ const handlers = { local, gdrive, newdest };
 - [x] Output routing: `{source}/{YYYY}` 폴더 자동 구조화 (local + Drive)
 - [x] Batch 기본 출력: MD + PDF 동시 (단일 URL과 동일)
 
-### Phase 4: 새로운 어댑터
+### Phase 4: 새로운 어댑터 & 출력 확장 (v1.1.0) ✅
+- [x] TheMiilk 어댑터 (기사 스크랩, 홈페이지 자동 감지)
+- [x] Medium 어댑터 (SSR 경량 추출, Playwright 폴백)
+- [x] Substack 어댑터 (뉴스레터 스크랩)
+- [x] Naver Blog 어댑터 (iframe 기반, Playwright 필수)
+- [x] Generic/Readability 어댑터 (모든 URL catch-all)
+- [x] EPUB 포맷 지원
+- [x] GFM 테이블 보존
+- [x] Obsidian 호환 모드 (`--obsidian`)
+- [x] 이미지 로컬 다운로드 (`--download-images`)
+- [x] 커스텀 파일명 템플릿 (`--filename-template`)
+- [x] 에러 힌트 시스템
+- [x] 속도 제한 (Rate Limiting)
+- [x] 프록시 지원 (`--proxy`)
+
+### Phase 5: 향후 계획
 - [ ] Vrew 어댑터 (자막 추출)
 - [ ] Notion 어댑터 (페이지 스크랩)
-- [ ] Medium 어댑터
-- [ ] Substack 어댑터
-
-### Phase 5: 출력 형식 확장
 - [ ] HTML 포맷터
 - [ ] DOCX 포맷터
-- [ ] Notion 내보내기
 - [ ] 인터랙티브 모드 (inquirer)
 
 ---
@@ -530,12 +545,13 @@ const handlers = { local, gdrive, newdest };
 ## Claude Code Plugin
 
 Claude Code에서 플러그인으로 사용할 수 있습니다.
+플러그인 소스: `plugin/`
 
 ### 설치
 
 ```bash
 /plugin marketplace add elon-jang/claude-plugins
-/plugin install webfetch@ai-plugins
+/plugin install webfetch@claude-kit
 ```
 
 ### 명령어

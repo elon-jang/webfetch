@@ -1,7 +1,9 @@
 # webfetch Project Context
 
 ## Overview
-Web scraping CLI + Web UI + MCP Server for LiveWiki, Longblack & TheMiilk. Extracts YouTube video summaries via LiveWiki or saves web articles to Markdown/PDF. Supports mobile access via Web UI and AI tool integration via MCP.
+Web scraping CLI + Web UI + MCP Server. Extracts articles/content from YouTube/LiveWiki, Longblack, TheMiilk, Medium, Substack, Naver Blog, and any URL (via Generic/Readability adapter). Saves to Markdown/PDF/EPUB. Supports mobile access via Web UI and AI tool integration via MCP.
+
+> **Claude Code 플러그인**: `plugin/` — CLI 래퍼 (commands, skills)
 
 ## Development Commands
 
@@ -172,8 +174,11 @@ npm test
 ### Adapter Pattern
 Add new site adapters in `/src/adapters/`:
 - Implement `match(url)` and `scrape(url, options)` methods
-- Register in `/src/adapters/index.js`
-- See `livewiki.js` and `longblack.js` for examples
+- Register in `/src/adapters/index.js` (순서 중요: 구체적 → generic catch-all)
+- Current adapters: `livewiki`, `longblack`, `themiilk`, `medium`, `substack`, `naver`, `generic`
+- Medium/Substack: SSR 경량 추출 우선, Playwright 폴백
+- Naver Blog: iframe 구조 → 항상 Playwright 필요
+- Generic: `@mozilla/readability` + `linkedom` 경량 추출, Playwright 폴백
 
 ### Output Routing
 파일은 `{source}/{YYYY}` 구조로 자동 라우팅:
@@ -359,7 +364,13 @@ node src/index.js "https://longblack.co" --save-to gdrive --drive-folder "Notebo
 - Output routing: `{source}/{YYYY}` 폴더 자동 구조화 (local + Drive)
 - Batch 기본 출력: MD + PDF 동시 (단일 URL과 동일)
 
-### Planned (Phase 4+)
-- New adapters: Vrew, Notion, Medium, Substack
+### Completed (Phase 4: v1.1.0)
+- New adapters: TheMiilk, Medium, Substack, Naver Blog, Generic/Readability
+- EPUB format, GFM table preservation, Obsidian compatibility
+- Image downloading, custom filename templates
+- Error hint system, rate limiting, proxy support
+
+### Planned (Phase 5+)
+- New adapters: Vrew, Notion
 - New formatters: HTML, DOCX, Notion export
 - Interactive mode
