@@ -175,6 +175,17 @@ Add new site adapters in `/src/adapters/`:
 - Register in `/src/adapters/index.js`
 - See `livewiki.js` and `longblack.js` for examples
 
+### Output Routing
+파일은 `{source}/{YYYY}` 구조로 자동 라우팅:
+```
+Local:  output/LongBlack/2026/YYYY-MM-DD_title.md
+Drive:  Webfetch/LongBlack/2026/YYYY-MM-DD_title.md
+```
+- 매핑: `longblack→LongBlack`, `livewiki→YouTube`, `themiilk→TheMiilk`
+- `routeOutputOptions()` (`src/utils/routing.js`)가 outputDir, driveFolder에 자동 추가
+- driveFolder가 Drive ID(10자+ 영숫자)이면 라우팅 스킵 (하위 호환)
+- adapterName 없으면 원본 옵션 그대로 반환
+
 ### Output Handler Pattern
 Add new output destinations in `/src/outputs/`:
 - Implement `name` property and async `save(content, filename, options)` method
@@ -214,7 +225,8 @@ log.info('message');  // HH:MM:SS INFO [module-name] message
 - `/src/adapters/` - Site-specific scrapers (Strategy Pattern)
 - `/src/formatters/` - Output formatters (markdown, pdf, json)
 - `/src/outputs/` - Output destination handlers (local, gdrive)
-- `/src/utils/` - logger, errors, retry, cache, config utilities
+- `/src/utils/routing.js` - Output path routing (`{source}/{YYYY}`)
+- `/src/utils/` - logger, errors, retry, cache, config, routing utilities
 - `/src/batch.js` - Batch processing module
 - `/src/browser.js` - Playwright browser management (싱글톤 context)
 
@@ -247,6 +259,32 @@ npx playwright install chromium firefox
 - OAuth refresh token 만료/취소 시 자동 감지 (`invalid_grant`, `Token has been expired or revoked`)
 - 만료된 토큰 파일 자동 삭제 → `AuthError` throw
 - 복구: `node src/index.js gdrive --setup` 재실행
+
+### NotebookLM 연동 (슬라이드 생성)
+webfetch로 스크랩한 콘텐츠를 NotebookLM에서 슬라이드로 변환:
+
+**1. 스크랩 + Google Drive 저장**
+```bash
+node src/index.js "https://youtu.be/VIDEO_ID" --save-to gdrive
+node src/index.js "https://longblack.co" --save-to gdrive --drive-folder "NotebookLM"
+```
+
+**2. NotebookLM 소스 추가**
+- [notebooklm.google.com](https://notebooklm.google.com) 접속
+- 새 노트북 생성 또는 기존 노트북 선택
+- "+ 소스 추가" → "Google Drive" → 저장된 파일 선택
+
+**3. 슬라이드 생성**
+- Studio 패널 (우측) → "Slide Deck" 클릭
+- 포맷 선택:
+  - **Detailed Deck**: 전체 텍스트 포함, 이메일/공유용
+  - **Presenter Slides**: 핵심 포인트만, 발표용
+- 언어/길이/스타일 커스터마이징 가능
+- PDF로 내보내기
+
+**팁:**
+- 여러 소스를 한 노트북에 추가하면 통합 슬라이드 생성 가능
+- Audio Overview도 함께 생성하면 발표 연습에 유용
 
 ### Cache System
 - Located in `/.cache/` (gitignored)
@@ -318,6 +356,8 @@ npx playwright install chromium firefox
 - 공통 handler.js (CLI/Web/MCP 비즈니스 로직 공유)
 - Logger stderr 출력 (MCP stdio 호환)
 - 원격 MCP 지원 (`serve` 명령 `/mcp` 엔드포인트, Streamable HTTP, Bearer token 인증)
+- Output routing: `{source}/{YYYY}` 폴더 자동 구조화 (local + Drive)
+- Batch 기본 출력: MD + PDF 동시 (단일 URL과 동일)
 
 ### Planned (Phase 4+)
 - New adapters: Vrew, Notion, Medium, Substack

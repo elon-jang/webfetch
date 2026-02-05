@@ -73,7 +73,7 @@ export const CONFIG_TEMPLATE = `export default {
   // browser: 'chrome',
   // format: 'markdown',       // markdown, pdf, json (or omit for both md+pdf)
   // saveTo: 'local',          // local, gdrive, local,gdrive
-  // driveFolder: '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa',  // Drive folder name, path, or ID
+  // driveFolder: 'Webfetch',  // Drive folder name — files auto-route to {source}/{YYYY}
   // driveOverwrite: false,    // overwrite existing Drive files
   // cacheMaxAge: '24',        // cache TTL in hours
   // headless: false,

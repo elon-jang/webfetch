@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readdirSync, statSync, readFileSync, mkdirSync } from 'fs';
-import { join, dirname, extname, basename } from 'path';
+import { join, dirname, extname, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { createReadStream } from 'fs';
 import { getAdapter, listAdapters } from './adapters/index.js';
@@ -14,6 +14,7 @@ import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
 import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
 import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
+import { routeOutputOptions } from './utils/routing.js';
 import { createLogger } from './utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -114,11 +115,11 @@ export function enqueueScrape(url, options = {}) {
     // Format & save
     const format = options.format?.toLowerCase();
     const outputs = resolveOutputs(options.saveTo || 'local');
-    const outputOptions = {
+    const outputOptions = routeOutputOptions({
       outputDir: OUTPUT_DIR,
       driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
       driveOverwrite: options.driveOverwrite || false,
-    };
+    }, adapter.name);
 
     const savedFiles = [];
 
@@ -226,11 +227,11 @@ export async function scrape(url, options = {}) {
 
   const format = options.format?.toLowerCase();
   const outputs = resolveOutputs(options.saveTo || 'local');
-  const outputOptions = {
+  const outputOptions = routeOutputOptions({
     outputDir: OUTPUT_DIR,
     driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
     driveOverwrite: options.driveOverwrite || false,
-  };
+  }, adapter.name);
 
   const savedFiles = [];
 
@@ -266,22 +267,29 @@ export async function scrape(url, options = {}) {
 export function getHistory() {
   if (!existsSync(OUTPUT_DIR)) return [];
 
-  const files = readdirSync(OUTPUT_DIR)
-    .filter(f => /\.(md|pdf|json)$/.test(f))
-    .map(name => {
-      const filePath = join(OUTPUT_DIR, name);
-      const stat = statSync(filePath);
-      const ext = extname(name).slice(1);
-      return {
-        name,
-        format: ext,
-        size: stat.size,
-        createdAt: stat.birthtime.toISOString(),
-        modifiedAt: stat.mtime.toISOString(),
-      };
-    })
-    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+  const files = [];
 
+  function scanDir(dir, prefix) {
+    for (const entry of readdirSync(dir)) {
+      const fullPath = join(dir, entry);
+      const stat = statSync(fullPath);
+      if (stat.isDirectory()) {
+        scanDir(fullPath, prefix ? `${prefix}/${entry}` : entry);
+      } else if (/\.(md|pdf|json)$/.test(entry)) {
+        const ext = extname(entry).slice(1);
+        files.push({
+          name: prefix ? `${prefix}/${entry}` : entry,
+          format: ext,
+          size: stat.size,
+          createdAt: stat.birthtime.toISOString(),
+          modifiedAt: stat.mtime.toISOString(),
+        });
+      }
+    }
+  }
+
+  scanDir(OUTPUT_DIR, '');
+  files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
   return files;
 }
 
@@ -289,15 +297,18 @@ export function getHistory() {
 
 /**
  * Get file path for download. Returns null if file not found or path traversal detected.
+ * Supports nested paths like "LongBlack/2026/file.md".
  */
 export function getFilePath(filename) {
   // Path traversal protection
-  const safe = basename(filename);
-  if (safe !== filename || filename.includes('..') || filename.includes('/')) {
-    return null;
-  }
+  if (filename.includes('..')) return null;
 
-  const filePath = join(OUTPUT_DIR, safe);
+  const filePath = join(OUTPUT_DIR, filename);
+
+  // Ensure resolved path is still under OUTPUT_DIR
+  const resolved = resolve(filePath);
+  if (!resolved.startsWith(resolve(OUTPUT_DIR))) return null;
+
   if (!existsSync(filePath)) return null;
 
   return filePath;

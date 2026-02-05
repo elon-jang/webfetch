@@ -2,3 +2,4 @@ export * from './logger.js';
 export * from './errors.js';
 export * from './retry.js';
 export * from './cache.js';
+export * from './routing.js';

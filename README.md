@@ -27,8 +27,8 @@ node src/index.js "https://youtu.be/VIDEO_ID"
 # Longblack 오늘의 기사 자동 스크랩
 node src/index.js "https://longblack.co"
 
-# 결과는 output/ 폴더에 Markdown + PDF로 자동 저장됩니다
-# 예: output/2026-01-26_기사_제목.md + .pdf
+# 결과는 output/{source}/{YYYY}/ 에 Markdown + PDF로 자동 저장됩니다
+# 예: output/LongBlack/2026/2026-01-26_기사_제목.md + .pdf
 ```
 
 ## Usage Examples
@@ -88,7 +88,10 @@ node src/index.js "https://youtu.be/VIDEO_ID" -f json
 ### 5. 출력 경로 지정
 
 ```bash
-# 기본: output/YYYY-MM-DD_제목.md + .pdf
+# 기본: output/{source}/{YYYY}/YYYY-MM-DD_제목.md + .pdf
+# 예: output/YouTube/2026/2026-02-05_영상_제목.md
+#     output/LongBlack/2026/2026-02-05_기사_제목.md
+#     output/TheMiilk/2026/2026-02-05_기사_제목.md
 node src/index.js "https://youtu.be/VIDEO_ID"
 
 # 사용자 지정 경로
@@ -269,7 +272,7 @@ node src/index.js config --show
 // webfetch.config.js 예시
 export default {
   saveTo: 'local,gdrive',
-  driveFolder: 'Articles',
+  driveFolder: 'Webfetch',   // 파일은 Webfetch/{source}/{YYYY}/에 자동 저장
   driveOverwrite: false,
   cacheMaxAge: '24',
   headless: false,
@@ -285,7 +288,7 @@ export default {
 | 옵션 | 설명 | 기본값 |
 |------|------|--------|
 | `-f, --format` | 출력 형식 (markdown, pdf, json) | md + pdf 동시 |
-| `-o, --output` | 출력 파일 경로 | output/YYYY-MM-DD_제목.ext |
+| `-o, --output` | 출력 파일 경로 | output/{source}/{YYYY}/YYYY-MM-DD_제목.ext |
 | `-b, --browser` | 브라우저 (chrome, firefox) | chrome |
 | `--headless` | 헤드리스 모드 (로그인 불가) | false |
 | `--keep-open` | 완료 후 브라우저 유지 | false |
@@ -300,7 +303,7 @@ export default {
 
 | 옵션 | 설명 | 기본값 |
 |------|------|--------|
-| `-f, --format` | 출력 형식 (markdown, pdf, json) | markdown |
+| `-f, --format` | 출력 형식 (markdown, pdf, json) | md + pdf 동시 |
 | `-o, --output-dir` | 출력 디렉토리 | output/ |
 | `-b, --browser` | 브라우저 (chrome, firefox) | chrome |
 | `--headless` | 헤드리스 모드 | false |
@@ -348,8 +351,8 @@ export default {
 
 ## Features
 
-- **듀얼 출력**: 기본 Markdown + PDF 동시 생성
-- **자동 파일명**: `YYYY-MM-DD_제목.ext` 형식
+- **듀얼 출력**: 기본 Markdown + PDF 동시 생성 (단일 URL, 배치 모두)
+- **자동 파일명**: `{source}/{YYYY}/YYYY-MM-DD_제목.ext` 구조 (LongBlack, YouTube, TheMiilk)
 - **홈페이지 자동 감지**: `longblack.co` 입력 시 오늘의 기사 자동 탐지 및 스크랩
 - **중복 방지**: `--skip-existing`으로 오늘 날짜 파일 존재 시 스킵
 - **영구 로그인**: 브라우저 프로필에 세션 저장 (Google OAuth 지원)
@@ -399,8 +402,9 @@ webfetch/
 │       ├── retry.js       # 재시도 로직
 │       ├── cache.js       # URL 캐싱 시스템
 │       ├── config.js      # 설정 파일 로더
+│       ├── routing.js     # 출력 경로 라우팅 ({source}/{YYYY})
 │       └── filename.js    # 파일명 생성 유틸
-├── output/                # 스크래핑 결과 저장
+├── output/                # 스크래핑 결과 저장 ({source}/{YYYY}/ 하위 구조)
 ├── .cache/                # URL 캐시 (gitignored)
 ├── auth/                  # 브라우저 프로필 (gitignored)
 └── package.json
@@ -506,6 +510,8 @@ const handlers = { local, gdrive, newdest };
 - [x] MCP 도구 5개 (scrape, history, download, cache, gdrive_upload)
 - [x] 공통 handler.js (CLI/Web/MCP 비즈니스 로직 공유)
 - [x] Logger stderr 출력 (MCP stdio 호환)
+- [x] Output routing: `{source}/{YYYY}` 폴더 자동 구조화 (local + Drive)
+- [x] Batch 기본 출력: MD + PDF 동시 (단일 URL과 동일)
 
 ### Phase 4: 새로운 어댑터
 - [ ] Vrew 어댑터 (자막 추출)

@@ -16,6 +16,7 @@ import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
 import gdriveHandler, { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 import { loadConfig, mergeConfig, CONFIG_TEMPLATE } from './utils/config.js';
+import { routeOutputOptions } from './utils/routing.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -125,7 +126,8 @@ program
 
       // Check for existing article (skip-existing mode)
       if (options.skipExisting) {
-        const existing = checkExistingArticle(OUTPUT_DIR);
+        const routedDir = routeOutputOptions({ outputDir: OUTPUT_DIR }, adapter.name).outputDir;
+        const existing = checkExistingArticle(routedDir);
         if (existing && existing.length > 0) {
           log.info(`Skipping - today's article already exists:`);
           existing.forEach(f => log.info(`  ${f}`));
@@ -161,11 +163,11 @@ program
 
       // Resolve output handlers
       const outputs = resolveOutputs(options.saveTo);
-      const outputOptions = {
+      const outputOptions = routeOutputOptions({
         outputDir: OUTPUT_DIR,
         driveFolder: options.driveFolder,
         driveOverwrite: options.driveOverwrite,
-      };
+      }, adapter.name);
 
       // Format output - default to both md & pdf if not specified
       const format = options.format?.toLowerCase();
@@ -226,7 +228,7 @@ program
 program
   .command('batch <file>')
   .description('Process multiple URLs from a file')
-  .option('-f, --format <type>', 'output format (markdown, json, pdf)', 'markdown')
+  .option('-f, --format <type>', 'output format (markdown, json, pdf). Default: both md & pdf')
   .option('-o, --output-dir <path>', 'output directory', OUTPUT_DIR)
   .option('-b, --browser <type>', 'browser (chrome, firefox)', 'chrome')
   .option('--headless', 'run headless (not recommended for login)', false)
