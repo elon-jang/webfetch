@@ -1,7 +1,7 @@
 {
   "name": "webfetch",
-  "version": "1.0.0",
-  "description": "Web scraping CLI for YouTube summaries (via LiveWiki) and Longblack articles to Markdown/PDF",
+  "version": "1.1.0",
+  "description": "Web scraping CLI for articles and content from YouTube/LiveWiki, Longblack, TheMiilk, Medium, Substack, Naver Blog, and any URL to Markdown/PDF/EPUB",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -9,8 +9,13 @@
     "youtube",
     "longblack",
     "livewiki",
+    "themiilk",
+    "medium",
+    "substack",
+    "naver",
     "markdown",
     "pdf",
+    "epub",
     "playwright",
     "cli"
   ],
@@ -36,10 +41,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "@mozilla/readability": "^0.6.0",
     "commander": "^12.0.0",
+    "epub-gen-memory": "^1.1.2",
     "googleapis": "^144.0.0",
+    "linkedom": "^0.18.12",
     "playwright": "^1.57.0",
     "turndown": "^7.1.2",
+    "turndown-plugin-gfm": "^1.0.2",
     "zod": "^3.24.0"
   },
   "devDependencies": {

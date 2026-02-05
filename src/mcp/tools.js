@@ -22,14 +22,15 @@ export function registerTools(server) {
     'webfetch_scrape',
     {
       title: 'Scrape URL',
-      description: 'Scrape a URL (YouTube via LiveWiki, Longblack) and save as Markdown/PDF',
+      description: 'Scrape a URL (YouTube, Longblack, TheMiilk, Medium, Substack, Naver Blog, or any URL) and save as Markdown/PDF/EPUB',
       inputSchema: {
         url: z.string().describe('URL to scrape'),
-        format: z.enum(['md', 'pdf', 'both']).optional().describe('Output format (default: both)'),
+        format: z.enum(['md', 'pdf', 'epub', 'both']).optional().describe('Output format (default: both md+pdf)'),
+        downloadImages: z.boolean().optional().describe('Download images locally'),
       },
     },
-    async ({ url, format }) => {
-      const result = await scrape(url, { format: format || 'both' });
+    async ({ url, format, downloadImages }) => {
+      const result = await scrape(url, { format: format || 'both', downloadImages });
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
@@ -95,6 +96,50 @@ export function registerTools(server) {
       }
       const stats = getCacheInfo();
       return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
+    }
+  );
+
+  // ─── webfetch_search ───
+  server.registerTool(
+    'webfetch_search',
+    {
+      title: 'Search Output Files',
+      description: 'Search through scraped files for matching content',
+      inputSchema: {
+        query: z.string().describe('Search query (case-insensitive substring match)'),
+      },
+    },
+    async ({ query }) => {
+      const files = getHistory();
+      const matches = [];
+
+      for (const file of files) {
+        if (file.format !== 'md' && file.format !== 'json') continue;
+
+        const data = readFile(file.name);
+        if (!data || data.type !== 'text') continue;
+
+        if (data.content.toLowerCase().includes(query.toLowerCase())) {
+          const lines = data.content.split('\n');
+          const matchingLines = lines
+            .filter(l => l.toLowerCase().includes(query.toLowerCase()))
+            .slice(0, 3)
+            .map(l => l.trim().slice(0, 200));
+
+          matches.push({
+            file: file.name,
+            format: file.format,
+            preview: matchingLines,
+          });
+        }
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ query, totalMatches: matches.length, matches }, null, 2),
+        }],
+      };
     }
   );
 

@@ -30,13 +30,19 @@ export async function launch(options = {}) {
   log.info(`Launching ${browserType}...`);
 
   try {
-    context = await launcher.launchPersistentContext(profileDir, {
+    const launchOptions = {
       headless: options.headless ?? false,
       viewport: { width: 1280, height: 800 },
       args: browserType === 'chrome'
         ? ['--disable-blink-features=AutomationControlled']
         : [],
-    });
+    };
+
+    if (options.proxy) {
+      launchOptions.proxy = { server: options.proxy };
+    }
+
+    context = await launcher.launchPersistentContext(profileDir, launchOptions);
 
     log.debug('Browser launched successfully');
     return context;

@@ -147,6 +147,13 @@ export function enqueueScrape(url, options = {}) {
       const pdfContent = await toPdf(result);
       await saveToOutputs(outputs, pdfContent, pdfFilename, outputOptions);
       savedFiles.push({ name: pdfFilename, format: 'pdf' });
+    } else if (format === 'epub') {
+      notify('formatting', 'Generating EPUB...');
+      const { toEpub } = await import('./formatters/epub.js');
+      const epubFilename = generateFilename(result.title, 'epub');
+      const epubContent = await toEpub(result);
+      await saveToOutputs(outputs, epubContent, epubFilename, outputOptions);
+      savedFiles.push({ name: epubFilename, format: 'epub' });
     }
 
     // Extract a text preview from HTML
@@ -251,6 +258,11 @@ export async function scrape(url, options = {}) {
     const pdfFilename = generateFilename(result.title, 'pdf');
     await saveToOutputs(outputs, await toPdf(result), pdfFilename, outputOptions);
     savedFiles.push({ name: pdfFilename, format: 'pdf' });
+  } else if (format === 'epub') {
+    const { toEpub } = await import('./formatters/epub.js');
+    const epubFilename = generateFilename(result.title, 'epub');
+    await saveToOutputs(outputs, await toEpub(result), epubFilename, outputOptions);
+    savedFiles.push({ name: epubFilename, format: 'epub' });
   }
 
   const preview = (result.html || '')
@@ -275,7 +287,7 @@ export function getHistory() {
       const stat = statSync(fullPath);
       if (stat.isDirectory()) {
         scanDir(fullPath, prefix ? `${prefix}/${entry}` : entry);
-      } else if (/\.(md|pdf|json)$/.test(entry)) {
+      } else if (/\.(md|pdf|json|epub)$/.test(entry)) {
         const ext = extname(entry).slice(1);
         files.push({
           name: prefix ? `${prefix}/${entry}` : entry,
@@ -322,7 +334,7 @@ export function readFile(filename) {
   if (!filePath) return null;
 
   const ext = extname(filename).toLowerCase();
-  if (ext === '.pdf') {
+  if (ext === '.pdf' || ext === '.epub') {
     // Return path for binary files
     return { type: 'binary', path: filePath, size: statSync(filePath).size };
   }
@@ -344,6 +356,7 @@ export function getFileStream(filename) {
     '.md': 'text/markdown',
     '.pdf': 'application/pdf',
     '.json': 'application/json',
+    '.epub': 'application/epub+zip',
   };
 
   return {

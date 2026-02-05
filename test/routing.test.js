@@ -14,6 +14,22 @@ describe('getSourceFolder', () => {
     expect(getSourceFolder('themiilk')).toBe('TheMiilk');
   });
 
+  it('maps medium to Medium', () => {
+    expect(getSourceFolder('medium')).toBe('Medium');
+  });
+
+  it('maps substack to Substack', () => {
+    expect(getSourceFolder('substack')).toBe('Substack');
+  });
+
+  it('maps naver to NaverBlog', () => {
+    expect(getSourceFolder('naver')).toBe('NaverBlog');
+  });
+
+  it('maps generic to General', () => {
+    expect(getSourceFolder('generic')).toBe('General');
+  });
+
   it('returns null for unknown adapter', () => {
     expect(getSourceFolder('unknown')).toBeNull();
   });

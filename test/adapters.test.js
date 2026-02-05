@@ -100,17 +100,73 @@ describe('getAdapter', () => {
     });
   });
 
-  describe('unsupported URLs', () => {
-    it('returns undefined for unsupported URL', () => {
-      expect(getAdapter('https://example.com')).toBeUndefined();
+  describe('Medium URLs', () => {
+    it('matches medium.com article URL', () => {
+      const adapter = getAdapter('https://medium.com/@user/article-title-abc123');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('medium');
     });
 
+    it('matches subdomain.medium.com URL', () => {
+      const adapter = getAdapter('https://blog.medium.com/some-post-abc123');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('medium');
+    });
+  });
+
+  describe('Substack URLs', () => {
+    it('matches substack post URL', () => {
+      const adapter = getAdapter('https://newsletter.substack.com/p/some-post');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('substack');
+    });
+
+    it('matches substack homepage', () => {
+      const adapter = getAdapter('https://mysubstack.substack.com');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('substack');
+    });
+  });
+
+  describe('Naver Blog URLs', () => {
+    it('matches naver blog post URL', () => {
+      const adapter = getAdapter('https://blog.naver.com/user123/12345678');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('naver');
+    });
+
+    it('matches naver blog user page', () => {
+      const adapter = getAdapter('https://blog.naver.com/user123');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('naver');
+    });
+  });
+
+  describe('Generic URLs (catch-all)', () => {
+    it('matches any http URL as generic', () => {
+      const adapter = getAdapter('https://example.com');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('generic');
+    });
+
+    it('matches any https URL as generic', () => {
+      const adapter = getAdapter('https://some-random-site.org/article');
+      expect(adapter).toBeTruthy();
+      expect(adapter.name).toBe('generic');
+    });
+  });
+
+  describe('unsupported URLs', () => {
     it('returns undefined for empty string', () => {
       expect(getAdapter('')).toBeUndefined();
     });
 
-    it('returns undefined for Medium URL', () => {
-      expect(getAdapter('https://medium.com/article')).toBeUndefined();
+    it('returns undefined for non-URL string', () => {
+      expect(getAdapter('not-a-url')).toBeUndefined();
+    });
+
+    it('returns undefined for ftp URL', () => {
+      expect(getAdapter('ftp://example.com')).toBeUndefined();
     });
   });
 });

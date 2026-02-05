@@ -24,6 +24,7 @@ const MIME_TYPES = {
   '.pdf': 'application/pdf',
   '.json': 'application/json',
   '.txt': 'text/plain',
+  '.epub': 'application/epub+zip',
 };
 
 function loadCredentials() {

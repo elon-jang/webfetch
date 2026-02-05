@@ -14,6 +14,10 @@ export const SOURCE_FOLDER_NAMES = {
   longblack: 'LongBlack',
   livewiki: 'YouTube',
   themiilk: 'TheMiilk',
+  medium: 'Medium',
+  substack: 'Substack',
+  naver: 'NaverBlog',
+  generic: 'General',
 };
 
 /**

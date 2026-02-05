@@ -77,7 +77,10 @@ export const themiilk = {
             // Check paywall again after login
             const stillBlocked = await checkPaywall(page);
             if (stillBlocked) {
-              throw new AuthError('Content still blocked after login', { url });
+              throw new AuthError('Content still blocked after login', {
+              url,
+              hint: 'auth/ 폴더를 삭제 후 재로그인하거나 --keep-open으로 디버그',
+            });
             }
           }
 
@@ -245,6 +248,7 @@ async function extractContent(page, url) {
     throw new ContentError('Extracted content too short, page may not have loaded correctly', {
       url,
       contentLength: html?.length || 0,
+      hint: '사이트 구조 변경 가능. --keep-open으로 페이지 확인',
     });
   }
 

@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { getAdapter, listAdapters } from './adapters/index.js';
+import { getAdapter, listAdapters, checkHealth } from './adapters/index.js';
 import { toMarkdown } from './formatters/markdown.js';
 import { toPdf } from './formatters/pdf.js';
 import { WebfetchError, UploadError } from './utils/errors.js';
@@ -17,6 +17,7 @@ import { resolveOutputs } from './outputs/index.js';
 import gdriveHandler, { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 import { loadConfig, mergeConfig, CONFIG_TEMPLATE } from './utils/config.js';
 import { routeOutputOptions } from './utils/routing.js';
+import { downloadImages } from './utils/images.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -105,6 +106,10 @@ program
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
   .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
+  .option('--proxy <url>', 'proxy server URL for browser')
+  .option('--download-images', 'download images locally and embed in output', false)
+  .option('--obsidian', 'add Obsidian-compatible tags to frontmatter', false)
+  .option('--filename-template <pattern>', 'filename template (vars: {date}, {title}, {source}, {author}, {year}, {month})')
   .action(async (url, options) => {
     try {
       // Merge config file with CLI options
@@ -153,12 +158,19 @@ program
           browser: options.browser,
           headless: options.headless,
           keepOpen: options.keepOpen,
+          proxy: options.proxy,
         });
 
         // Save to cache (if enabled)
         if (options.cache) {
           setCache(url, result);
         }
+      }
+
+      // Download images if requested (before formatting)
+      if (options.downloadImages && result.html) {
+        const routedDir = routeOutputOptions({ outputDir: OUTPUT_DIR }, adapter.name).outputDir;
+        result.html = await downloadImages(result.html, result.url, routedDir);
       }
 
       // Resolve output handlers
@@ -168,6 +180,14 @@ program
         driveFolder: options.driveFolder,
         driveOverwrite: options.driveOverwrite,
       }, adapter.name);
+
+      // Markdown options
+      const mdOptions = { obsidian: options.obsidian };
+
+      // Filename options
+      const fnOptions = options.filenameTemplate
+        ? { template: options.filenameTemplate, source: adapter.name, author: result.metadata?.author }
+        : undefined;
 
       // Format output - default to both md & pdf if not specified
       const format = options.format?.toLowerCase();
@@ -179,8 +199,11 @@ program
           output = JSON.stringify(result, null, 2);
         } else if (format === 'pdf') {
           output = await toPdf(result);
+        } else if (format === 'epub') {
+          const { toEpub } = await import('./formatters/epub.js');
+          output = await toEpub(result);
         } else {
-          output = toMarkdown(result);
+          output = toMarkdown(result, mdOptions);
         }
         // Custom output path uses local handler directly
         const { writeFileSync } = await import('fs');
@@ -188,32 +211,38 @@ program
         log.info(`Saved to: ${options.output}`);
       } else if (!format) {
         // No format specified - output both markdown and PDF
-        const mdFilename = generateFilename(result.title, 'md');
-        const pdfFilename = generateFilename(result.title, 'pdf');
+        const mdFilename = generateFilename(result.title, 'md', fnOptions);
+        const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
 
-        const mdContent = toMarkdown(result);
+        const mdContent = toMarkdown(result, mdOptions);
         const pdfContent = await toPdf(result);
 
         await saveToOutputs(outputs, mdContent, mdFilename, outputOptions);
         await saveToOutputs(outputs, pdfContent, pdfFilename, outputOptions);
       } else {
         // Specific format requested
-        const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : 'md';
+        const ext = format === 'pdf' ? 'pdf' : format === 'json' ? 'json' : format === 'epub' ? 'epub' : 'md';
         let output;
         if (format === 'json') {
           output = JSON.stringify(result, null, 2);
         } else if (format === 'pdf') {
           output = await toPdf(result);
+        } else if (format === 'epub') {
+          const { toEpub } = await import('./formatters/epub.js');
+          output = await toEpub(result);
         } else {
-          output = toMarkdown(result);
+          output = toMarkdown(result, mdOptions);
         }
-        const filename = generateFilename(result.title, ext);
+        const filename = generateFilename(result.title, ext, fnOptions);
         await saveToOutputs(outputs, output, filename, outputOptions);
       }
 
     } catch (error) {
       if (error instanceof WebfetchError) {
         logger.error(`[${error.code}] ${error.message}`);
+        if (error.details?.hint) {
+          logger.info(`Hint: ${error.details.hint}`);
+        }
         if (error.details && Object.keys(error.details).length > 0) {
           logger.debug(`Details: ${JSON.stringify(error.details)}`);
         }
@@ -237,6 +266,7 @@ program
   .option('--stop-on-error', 'stop processing on first error', false)
   .option('--skip-existing', 'skip URLs if today\'s article exists', false)
   .option('--report <path>', 'save batch report to file')
+  .option('--rate-limit <ms>', 'minimum delay between requests in ms', '2000')
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
   .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
@@ -264,6 +294,7 @@ program
         cacheMaxAge: parseInt(options.cacheMaxAge) * 60 * 60 * 1000,
         outputDir: options.outputDir,
         stopOnError: options.stopOnError,
+        rateLimit: parseInt(options.rateLimit),
         saveTo: options.saveTo,
         driveFolder: options.driveFolder,
         driveOverwrite: options.driveOverwrite,
@@ -329,9 +360,28 @@ program
     log.info('  webfetch https://youtube.com/watch?v=xxx     # Extract via LiveWiki');
     log.info('  webfetch https://livewiki.com/ko/content/xxx # Scrape LiveWiki');
     log.info('  webfetch https://longblack.co/note/xxx       # Scrape Longblack');
-    log.info('  webfetch <url> -f pdf                        # Save as PDF (auto filename)');
+    log.info('  webfetch https://medium.com/@user/article    # Scrape Medium');
+    log.info('  webfetch https://name.substack.com/p/post    # Scrape Substack');
+    log.info('  webfetch https://blog.naver.com/user/post    # Scrape Naver Blog');
+    log.info('  webfetch https://example.com/article         # Generic scrape');
+    log.info('  webfetch <url> -f pdf                        # Save as PDF');
+    log.info('  webfetch <url> -f epub                       # Save as EPUB');
     log.info('  webfetch batch urls.txt                      # Process multiple URLs');
     log.info('  webfetch <url> --save-to gdrive              # Save to Google Drive');
+  });
+
+// Health check command
+program
+  .command('check')
+  .description('Check adapter site accessibility')
+  .action(async () => {
+    log.info('Checking adapter sites...');
+    const results = await checkHealth();
+    for (const r of results) {
+      const icon = r.ok ? '\u2713' : '\u2717';
+      const status = r.ok ? `OK (${r.status})` : `FAIL (${r.error || r.status})`;
+      log.info(`  ${icon} ${r.name}: ${status}`);
+    }
   });
 
 // Config management command

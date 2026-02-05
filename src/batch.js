@@ -12,6 +12,7 @@ import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
 import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
 import { routeOutputOptions } from './utils/routing.js';
+import { createRateLimiter, waitForSlot } from './utils/ratelimit.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, '..', 'output');
@@ -157,11 +158,14 @@ export async function processBatch(urls, options = {}) {
     outputDir: OUTPUT_DIR,
     concurrency: 1, // Sequential by default (browser limitation)
     stopOnError: false,
+    rateLimit: 2000,
     saveTo: 'local',
     driveFolder: DEFAULT_DRIVE_FOLDER_ID,
     driveOverwrite: false,
     ...options,
   };
+
+  const limiter = createRateLimiter(opts.rateLimit);
 
   const results = {
     total: urls.length,
@@ -190,6 +194,9 @@ export async function processBatch(urls, options = {}) {
     };
 
     try {
+      // Rate limit
+      await waitForSlot(limiter, url);
+
       // Process URL
       const result = await processUrl(url, opts);
       itemResult.title = result.title;
