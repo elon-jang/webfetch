@@ -89,6 +89,11 @@ async function lightweightScrape(url) {
 
   if (!article) return null;
 
+  const date = document.querySelector('meta[property="article:published_time"]')?.content
+    || document.querySelector('meta[property="og:article:published_time"]')?.content
+    || document.querySelector('meta[name="DC.date"]')?.content
+    || document.querySelector('time[datetime]')?.getAttribute('datetime');
+
   return {
     title: article.title || 'Untitled',
     html: article.content || '',
@@ -97,6 +102,7 @@ async function lightweightScrape(url) {
       author: article.byline || undefined,
       description: article.excerpt || undefined,
       siteName: article.siteName || undefined,
+      date: date || undefined,
     },
   };
 }
@@ -148,7 +154,12 @@ async function browserScrape(url, options) {
       const description = document.querySelector('meta[property="og:description"]')?.content
         || document.querySelector('meta[name="description"]')?.content;
       const siteName = document.querySelector('meta[property="og:site_name"]')?.content;
-      return { author, description, siteName };
+      const date = document.querySelector('meta[property="article:published_time"]')?.content
+        || document.querySelector('meta[property="og:article:published_time"]')?.content
+        || document.querySelector('meta[name="DC.date"]')?.content
+        || document.querySelector('time[datetime]')?.getAttribute('datetime')
+        || undefined;
+      return { author, description, siteName, date };
     });
 
     if (!article || !article.content || article.content.length < MIN_CONTENT_LENGTH) {
@@ -184,6 +195,7 @@ async function browserScrape(url, options) {
         author: metadata.author || article.byline || undefined,
         description: metadata.description || article.excerpt || undefined,
         siteName: metadata.siteName || article.siteName || undefined,
+        date: metadata.date || undefined,
       },
     };
   } finally {

@@ -1,5 +1,6 @@
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
+import { normalizeDate } from '../utils/filename.js';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -29,6 +30,9 @@ export function toMarkdown(result, options = {}) {
     `url: ${url}`,
     `scraped_at: ${new Date().toISOString()}`,
   ];
+
+  const publishDate = metadata.date ? normalizeDate(metadata.date) : null;
+  if (publishDate) frontmatter.push(`date: ${publishDate}`);
 
   if (metadata.author) frontmatter.push(`author: "${metadata.author}"`);
   if (metadata.description) {

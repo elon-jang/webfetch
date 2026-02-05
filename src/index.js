@@ -14,7 +14,7 @@ import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './ut
 import { parseUrlFile, processBatch, saveBatchReport } from './batch.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
-import gdriveHandler, { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
+import gdriveHandler, { DEFAULT_DRIVE_FOLDER } from './outputs/gdrive.js';
 import { loadConfig, mergeConfig, CONFIG_TEMPLATE } from './utils/config.js';
 import { routeOutputOptions } from './utils/routing.js';
 import { downloadImages } from './utils/images.js';
@@ -30,7 +30,7 @@ const CLI_DEFAULTS = {
   cacheMaxAge: '24',
   skipExisting: false,
   saveTo: 'local',
-  driveFolder: DEFAULT_DRIVE_FOLDER_ID,
+  driveFolder: DEFAULT_DRIVE_FOLDER,
   driveOverwrite: false,
 };
 
@@ -104,7 +104,7 @@ program
   .option('--cache-max-age <hours>', 'cache max age in hours', '24')
   .option('--skip-existing', 'skip if today\'s article already scraped', false)
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .option('--proxy <url>', 'proxy server URL for browser')
   .option('--download-images', 'download images locally and embed in output', false)
@@ -185,9 +185,10 @@ program
       const mdOptions = { obsidian: options.obsidian };
 
       // Filename options
-      const fnOptions = options.filenameTemplate
-        ? { template: options.filenameTemplate, source: adapter.name, author: result.metadata?.author }
-        : undefined;
+      const fnOptions = {
+        publishDate: result.metadata?.date,
+        ...(options.filenameTemplate && { template: options.filenameTemplate, source: adapter.name, author: result.metadata?.author }),
+      };
 
       // Format output - default to both md & pdf if not specified
       const format = options.format?.toLowerCase();
@@ -268,7 +269,7 @@ program
   .option('--report <path>', 'save batch report to file')
   .option('--rate-limit <ms>', 'minimum delay between requests in ms', '2000')
   .option('--save-to <dest>', 'save destination: local, gdrive, or local,gdrive', 'local')
-  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER_ID)
+  .option('--drive-folder <name>', 'Google Drive folder name or ID', DEFAULT_DRIVE_FOLDER)
   .option('--drive-overwrite', 'overwrite existing file in Drive instead of creating duplicate', false)
   .action(async (file, options) => {
     try {

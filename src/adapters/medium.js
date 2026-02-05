@@ -101,6 +101,8 @@ async function lightweightScrape(url) {
     || document.querySelector('meta[name="author"]')?.content;
   const publication = document.querySelector('meta[property="og:site_name"]')?.content;
   const readingTime = document.querySelector('[class*="readingTime"]')?.textContent?.trim();
+  const date = document.querySelector('meta[property="article:published_time"]')?.content
+    || document.querySelector('time[datetime]')?.getAttribute('datetime');
 
   return {
     title: article.title || 'Untitled',
@@ -111,6 +113,7 @@ async function lightweightScrape(url) {
       description: article.excerpt || undefined,
       publication: publication || undefined,
       readingTime: readingTime || undefined,
+      date: date || undefined,
     },
   };
 }
@@ -161,7 +164,10 @@ async function browserScrape(url, options) {
       const author = document.querySelector('meta[name="author"]')?.content;
       const description = document.querySelector('meta[property="og:description"]')?.content;
       const publication = document.querySelector('meta[property="og:site_name"]')?.content;
-      return { author, description, publication };
+      const date = document.querySelector('meta[property="article:published_time"]')?.content
+        || document.querySelector('time[datetime]')?.getAttribute('datetime')
+        || undefined;
+      return { author, description, publication, date };
     });
 
     if (!html || html.length < 100) {

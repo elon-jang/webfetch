@@ -169,6 +169,31 @@ curl -X POST http://localhost:3000/mcp \
 npm test
 ```
 
+### Utility Scripts
+```bash
+# 기존 파일을 글 작성일 기준으로 일괄 변경
+node scripts/migrate-dates.js              # dry-run
+node scripts/migrate-dates.js --apply      # 적용
+
+# Google Drive 일괄 업로드
+node scripts/upload-to-gdrive.js           # dry-run
+node scripts/upload-to-gdrive.js --apply   # 업로드
+
+# Drive 폴더 구조 검증
+node scripts/verify-gdrive.js
+
+# Drive 중복 파일 정리
+node scripts/dedupe-gdrive.js              # dry-run
+node scripts/dedupe-gdrive.js --apply      # 삭제
+
+# 잘못된 Drive 폴더 삭제
+node scripts/cleanup-gdrive.js             # dry-run
+node scripts/cleanup-gdrive.js --apply     # 삭제
+```
+- 모든 스크립트 `--apply` 플래그 (기본: dry-run)
+- migrate-dates.js: 저장된 브라우저 세션 사용 (headless)
+- 라우팅: `{source}/{year}/` 폴더 자동 생성
+
 ## Architecture Patterns
 
 ### Adapter Pattern
@@ -190,6 +215,14 @@ Drive:  Webfetch/LongBlack/2026/YYYY-MM-DD_title.md
 - `routeOutputOptions()` (`src/utils/routing.js`)가 outputDir, driveFolder에 자동 추가
 - driveFolder가 Drive ID(10자+ 영숫자)이면 라우팅 스킵 (하위 호환)
 - adapterName 없으면 원본 옵션 그대로 반환
+
+### Filename Date Strategy
+파일명은 글 작성일(publish date) 우선, 크롤링 일자 폴백:
+- **Date source**: 어댑터 메타데이터 `publishDate` 필드 → `generateFilename`에 전달
+- **Fallback**: publish date 없으면 현재 날짜 사용
+- **Normalization**: `normalizeDate()` (`src/utils/filename.js`) — ISO 8601, Korean format, YYYY.MM.DD 등 → `YYYY-MM-DD`
+- **Frontmatter**: Markdown 파일에 `date:` 필드 포함 (Obsidian/Logseq 호환)
+- **Meta tag**: 모든 어댑터가 `article:published_time` 메타 태그 우선 추출
 
 ### Output Handler Pattern
 Add new output destinations in `/src/outputs/`:
@@ -231,9 +264,11 @@ log.info('message');  // HH:MM:SS INFO [module-name] message
 - `/src/formatters/` - Output formatters (markdown, pdf, json)
 - `/src/outputs/` - Output destination handlers (local, gdrive)
 - `/src/utils/routing.js` - Output path routing (`{source}/{YYYY}`)
+- `/src/utils/filename.js` - Filename generation, date normalization, template support
 - `/src/utils/` - logger, errors, retry, cache, config, routing utilities
 - `/src/batch.js` - Batch processing module
 - `/src/browser.js` - Playwright browser management (싱글톤 context)
+- `/scripts/` - Utility scripts (migrate-dates, upload/verify/dedupe/cleanup-gdrive)
 
 ## Environment & Dependencies
 
@@ -256,8 +291,8 @@ npx playwright install chromium firefox
 5. Scope: `drive.file` (앱이 생성한 파일만 접근)
 
 **Default Folder:**
-- Default folder ID: `DEFAULT_DRIVE_FOLDER_ID` (exported from `/src/outputs/gdrive.js`)
-- `--drive-folder` 미지정 시 이 폴더에 저장
+- Default folder name: `DEFAULT_DRIVE_FOLDER` = `'Webfetch'` (exported from `/src/outputs/gdrive.js`)
+- `--drive-folder` 미지정 시 `Webfetch/{source}/{year}/`에 저장 (routeOutputOptions 자동 라우팅)
 - 변경: `/src/outputs/gdrive.js`의 상수 수정 또는 `--drive-folder` 옵션 사용
 
 **Token Auto-Recovery:**

@@ -304,8 +304,11 @@ async function scrapeContent(page, url) {
 
     // Extract metadata
     const description = document.querySelector('meta[name="description"]')?.content || '';
+    const date = document.querySelector('time[datetime]')?.getAttribute('datetime')
+      || document.querySelector('meta[property="article:published_time"]')?.content
+      || undefined;
 
-    return { title, html, description, summaryHtml, timelineHtml };
+    return { title, html, description, summaryHtml, timelineHtml, date };
   }, CONFIG);
 
   // Click on 아티클 tab to extract article content
@@ -448,7 +451,7 @@ async function scrapeContent(page, url) {
     title: result.title,
     html: finalHtml,
     url,
-    metadata: { description: result.description },
+    metadata: { description: result.description, date: result.date },
   };
 }
 

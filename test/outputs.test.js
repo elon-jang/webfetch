@@ -164,9 +164,9 @@ describe('outputs/gdrive.js', () => {
     }
   });
 
-  it('exports DEFAULT_DRIVE_FOLDER_ID constant', async () => {
-    const { DEFAULT_DRIVE_FOLDER_ID } = await import('../src/outputs/gdrive.js');
-    expect(DEFAULT_DRIVE_FOLDER_ID).toBe('1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa');
+  it('exports DEFAULT_DRIVE_FOLDER constant', async () => {
+    const { DEFAULT_DRIVE_FOLDER } = await import('../src/outputs/gdrive.js');
+    expect(DEFAULT_DRIVE_FOLDER).toBe('Webfetch');
   });
 });
 

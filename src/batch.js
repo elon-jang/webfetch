@@ -10,7 +10,7 @@ import { createLogger } from './utils/logger.js';
 import { WebfetchError } from './utils/errors.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
-import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
+import { DEFAULT_DRIVE_FOLDER } from './outputs/gdrive.js';
 import { routeOutputOptions } from './utils/routing.js';
 import { createRateLimiter, waitForSlot } from './utils/ratelimit.js';
 
@@ -114,14 +114,16 @@ async function saveResult(result, options) {
     result._adapterName,
   );
 
+  const fnOptions = { publishDate: result.metadata?.date };
+
   // No format specified → save both md & pdf (same as single-URL default)
   if (!format) {
     const mdContent = toMarkdown(result);
-    const mdFilename = generateFilename(result.title, 'md');
+    const mdFilename = generateFilename(result.title, 'md', fnOptions);
     const mdResults = await saveToHandlers(outputs, mdContent, mdFilename, outputOptions);
 
     const pdfContent = await toPdf(result);
-    const pdfFilename = generateFilename(result.title, 'pdf');
+    const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
     const pdfResults = await saveToHandlers(outputs, pdfContent, pdfFilename, outputOptions);
 
     return [...mdResults, ...pdfResults];
@@ -138,7 +140,7 @@ async function saveResult(result, options) {
     output = toMarkdown(result);
   }
 
-  const filename = generateFilename(result.title, ext);
+  const filename = generateFilename(result.title, ext, fnOptions);
   return saveToHandlers(outputs, output, filename, outputOptions);
 }
 
@@ -160,7 +162,7 @@ export async function processBatch(urls, options = {}) {
     stopOnError: false,
     rateLimit: 2000,
     saveTo: 'local',
-    driveFolder: DEFAULT_DRIVE_FOLDER_ID,
+    driveFolder: DEFAULT_DRIVE_FOLDER,
     driveOverwrite: false,
     ...options,
   };

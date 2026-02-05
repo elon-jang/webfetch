@@ -241,7 +241,11 @@ async function extractContent(page, url) {
   const metadata = await page.evaluate(() => {
     const author = document.querySelector('.reporter-profile')?.textContent?.trim();
     const description = document.querySelector('meta[property="og:description"]')?.content;
-    return { author, description };
+    const date = document.querySelector('meta[property="article:published_time"]')?.content
+      || document.querySelector('time[datetime]')?.getAttribute('datetime')
+      || document.querySelector('.article-date')?.textContent?.trim()
+      || undefined;
+    return { author, description, date };
   });
 
   if (!html || html.trim().length < 100) {

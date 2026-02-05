@@ -13,7 +13,7 @@ import { toPdf } from './formatters/pdf.js';
 import { generateFilename } from './utils/filename.js';
 import { resolveOutputs } from './outputs/index.js';
 import { hasCache, getCache, setCache, clearAllCache, getCacheStats } from './utils/cache.js';
-import { DEFAULT_DRIVE_FOLDER_ID } from './outputs/gdrive.js';
+import { DEFAULT_DRIVE_FOLDER } from './outputs/gdrive.js';
 import { routeOutputOptions } from './utils/routing.js';
 import { createLogger } from './utils/logger.js';
 
@@ -117,40 +117,42 @@ export function enqueueScrape(url, options = {}) {
     const outputs = resolveOutputs(options.saveTo || 'local');
     const outputOptions = routeOutputOptions({
       outputDir: OUTPUT_DIR,
-      driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
+      driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER,
       driveOverwrite: options.driveOverwrite || false,
     }, adapter.name);
 
     const savedFiles = [];
 
+    const fnOptions = { publishDate: result.metadata?.date };
+
     if (!format || format === 'both') {
       notify('formatting', 'Generating markdown...');
-      const mdFilename = generateFilename(result.title, 'md');
+      const mdFilename = generateFilename(result.title, 'md', fnOptions);
       const mdContent = toMarkdown(result);
       await saveToOutputs(outputs, mdContent, mdFilename, outputOptions);
       savedFiles.push({ name: mdFilename, format: 'md' });
 
       notify('formatting', 'Generating PDF...');
-      const pdfFilename = generateFilename(result.title, 'pdf');
+      const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
       const pdfContent = await toPdf(result);
       await saveToOutputs(outputs, pdfContent, pdfFilename, outputOptions);
       savedFiles.push({ name: pdfFilename, format: 'pdf' });
     } else if (format === 'md' || format === 'markdown') {
       notify('formatting', 'Generating markdown...');
-      const mdFilename = generateFilename(result.title, 'md');
+      const mdFilename = generateFilename(result.title, 'md', fnOptions);
       const mdContent = toMarkdown(result);
       await saveToOutputs(outputs, mdContent, mdFilename, outputOptions);
       savedFiles.push({ name: mdFilename, format: 'md' });
     } else if (format === 'pdf') {
       notify('formatting', 'Generating PDF...');
-      const pdfFilename = generateFilename(result.title, 'pdf');
+      const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
       const pdfContent = await toPdf(result);
       await saveToOutputs(outputs, pdfContent, pdfFilename, outputOptions);
       savedFiles.push({ name: pdfFilename, format: 'pdf' });
     } else if (format === 'epub') {
       notify('formatting', 'Generating EPUB...');
       const { toEpub } = await import('./formatters/epub.js');
-      const epubFilename = generateFilename(result.title, 'epub');
+      const epubFilename = generateFilename(result.title, 'epub', fnOptions);
       const epubContent = await toEpub(result);
       await saveToOutputs(outputs, epubContent, epubFilename, outputOptions);
       savedFiles.push({ name: epubFilename, format: 'epub' });
@@ -236,31 +238,32 @@ export async function scrape(url, options = {}) {
   const outputs = resolveOutputs(options.saveTo || 'local');
   const outputOptions = routeOutputOptions({
     outputDir: OUTPUT_DIR,
-    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
+    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER,
     driveOverwrite: options.driveOverwrite || false,
   }, adapter.name);
 
   const savedFiles = [];
+  const fnOptions = { publishDate: result.metadata?.date };
 
   if (!format || format === 'both') {
-    const mdFilename = generateFilename(result.title, 'md');
+    const mdFilename = generateFilename(result.title, 'md', fnOptions);
     await saveToOutputs(outputs, toMarkdown(result), mdFilename, outputOptions);
     savedFiles.push({ name: mdFilename, format: 'md' });
 
-    const pdfFilename = generateFilename(result.title, 'pdf');
+    const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
     await saveToOutputs(outputs, await toPdf(result), pdfFilename, outputOptions);
     savedFiles.push({ name: pdfFilename, format: 'pdf' });
   } else if (format === 'md' || format === 'markdown') {
-    const mdFilename = generateFilename(result.title, 'md');
+    const mdFilename = generateFilename(result.title, 'md', fnOptions);
     await saveToOutputs(outputs, toMarkdown(result), mdFilename, outputOptions);
     savedFiles.push({ name: mdFilename, format: 'md' });
   } else if (format === 'pdf') {
-    const pdfFilename = generateFilename(result.title, 'pdf');
+    const pdfFilename = generateFilename(result.title, 'pdf', fnOptions);
     await saveToOutputs(outputs, await toPdf(result), pdfFilename, outputOptions);
     savedFiles.push({ name: pdfFilename, format: 'pdf' });
   } else if (format === 'epub') {
     const { toEpub } = await import('./formatters/epub.js');
-    const epubFilename = generateFilename(result.title, 'epub');
+    const epubFilename = generateFilename(result.title, 'epub', fnOptions);
     await saveToOutputs(outputs, await toEpub(result), epubFilename, outputOptions);
     savedFiles.push({ name: epubFilename, format: 'epub' });
   }
@@ -387,7 +390,7 @@ export async function uploadToGdrive(filename, options = {}) {
   const gdriveHandler = (await import('./outputs/gdrive.js')).default;
 
   const result = await gdriveHandler.save(content, filename, {
-    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER_ID,
+    driveFolder: options.driveFolder || DEFAULT_DRIVE_FOLDER,
     driveOverwrite: options.driveOverwrite || false,
   });
 

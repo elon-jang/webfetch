@@ -12,8 +12,8 @@ const AUTH_DIR = join(__dirname, '..', '..', 'auth');
 const CREDENTIALS_PATH = join(AUTH_DIR, 'gdrive-credentials.json');
 const TOKEN_PATH = join(AUTH_DIR, 'gdrive-token.json');
 
-/** Default Google Drive folder ID (shared across CLI, handler, batch) */
-export const DEFAULT_DRIVE_FOLDER_ID = '1NrzlShHPwlsvxMAKgmGqIBK6C8tnDioa';
+/** Default Google Drive folder name (shared across CLI, handler, batch) */
+export const DEFAULT_DRIVE_FOLDER = 'Webfetch';
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
@@ -139,7 +139,7 @@ export default {
   async save(content, filename, options = {}) {
     const { google, oauth2Client } = await getAuthClient();
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
-    const folderName = options.driveFolder || DEFAULT_DRIVE_FOLDER_ID;
+    const folderName = options.driveFolder || DEFAULT_DRIVE_FOLDER;
     const overwrite = options.driveOverwrite || false;
 
     const folderId = await findOrCreateFolder(drive, folderName);
@@ -284,7 +284,7 @@ export default {
     log.info(`Connected as: ${user.displayName} (${user.emailAddress})`);
 
     // Test folder access
-    const folderName = 'webfetch';
+    const folderName = DEFAULT_DRIVE_FOLDER;
     const folderId = await findOrCreateFolder(drive, folderName);
     log.info(`Drive folder ready: ${folderName} (${folderId})`);
 

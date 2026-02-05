@@ -268,6 +268,10 @@ async function extractContent(page, url) {
 
   const metadata = await page.evaluate(() => ({
     description: document.querySelector('meta[property="og:description"]')?.content,
+    date: document.querySelector('meta[property="article:published_time"]')?.content
+      || document.querySelector('time[datetime]')?.getAttribute('datetime')
+      || document.querySelector('[class*="date"]')?.textContent?.trim()
+      || undefined,
   }));
 
   log.info(`Extracted: ${title} (${html?.length || 0} chars)`);
